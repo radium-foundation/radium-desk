@@ -20,6 +20,7 @@ use App\Notifications\LeaveAmendmentDecisionNotification;
 use App\Notifications\LeaveAmendmentSubmittedNotification;
 use App\Services\AuditLogService;
 use App\Services\Notifications\NotificationAuthorityService;
+use App\Services\Operations\LeavePolicy\LeaveCoverageGuard;
 use App\Services\Operations\LeavePolicy\LeavePolicyOrchestrator;
 use App\Services\Workforce\PayrollMonthLockService;
 use Illuminate\Support\Carbon;
@@ -37,6 +38,7 @@ class LeaveRequestAmendmentService
         private readonly WorkforceEventPublisher $workforceEventPublisher,
         private readonly PayrollMonthLockService $payrollMonthLockService,
         private readonly LeavePolicyOrchestrator $leavePolicyOrchestrator,
+        private readonly LeaveCoverageGuard $leaveCoverageGuard,
     ) {}
 
     public function canManage(User $user): bool
@@ -161,6 +163,12 @@ class LeaveRequestAmendmentService
                     endDate: $lockedAmendment->proposed_end_date->copy()->startOfDay(),
                     excludeLeaveRequestId: $leaveRequest->id,
                 );
+                $this->assertCoverageForProposedDates(
+                    $leaveRequest,
+                    $lockedAmendment->proposed_start_date->copy()->startOfDay(),
+                    $lockedAmendment->proposed_end_date->copy()->startOfDay(),
+                    $lockedAmendment->proposed_duration ?? LeaveDuration::FullDay,
+                );
             }
 
             $lockedAmendment->fill([
@@ -256,6 +264,8 @@ class LeaveRequestAmendmentService
                 endDate: $proposedEnd,
                 excludeLeaveRequestId: $lockedLeave->id,
             );
+
+            $this->assertCoverageForProposedDates($lockedLeave, $proposedStart, $proposedEnd, $proposedDuration);
 
             $amendment = LeaveRequestAmendment::query()->create([
                 'leave_request_id' => $lockedLeave->id,
@@ -561,6 +571,36 @@ class LeaveRequestAmendmentService
             ->whereKey($leaveRequest->id)
             ->lockForUpdate()
             ->firstOrFail();
+    }
+
+    private function assertCoverageForProposedDates(
+        LeaveRequest $leaveRequest,
+        Carbon $proposedStart,
+        Carbon $proposedEnd,
+        LeaveDuration $duration,
+    ): void {
+        $requester = $leaveRequest->user;
+        if ($requester === null) {
+            return;
+        }
+
+        $policy = $this->leavePolicyOrchestrator->evaluateSubmission(
+            requester: $requester,
+            requestedStart: $proposedStart,
+            requestedEnd: $proposedEnd,
+            duration: $duration,
+            manualException: (bool) $leaveRequest->is_manual_exception,
+            submittedAt: $leaveRequest->created_at ?? now(),
+            excludeLeaveRequestId: $leaveRequest->id,
+        );
+
+        $this->leaveCoverageGuard->lockCoverageGroupRows($requester);
+        $this->leaveCoverageGuard->assertCoverageAllows(
+            $requester,
+            $policy->effectiveStart,
+            $policy->effectiveEnd,
+            excludeLeaveRequestIds: [$leaveRequest->id],
+        );
     }
 
     private function lockAmendment(LeaveRequestAmendment $amendment): LeaveRequestAmendment

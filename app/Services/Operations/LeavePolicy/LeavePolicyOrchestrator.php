@@ -66,7 +66,10 @@ class LeavePolicyOrchestrator
             }
             $requiresManualReview = true;
             $messages = $exception->errors();
-            $coverageBlock = (string) (reset($messages) ? reset(reset($messages)) : $exception->getMessage());
+            $firstField = reset($messages);
+            $coverageBlock = is_array($firstField) && $firstField !== []
+                ? (string) reset($firstField)
+                : (string) $exception->getMessage();
         }
 
         $metadata = array_merge($sandwich['metadata'], [

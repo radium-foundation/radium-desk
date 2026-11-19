@@ -15,8 +15,11 @@ class LeaveCoverageGuard
      */
     public function configurationStatus(): array
     {
+        $triadEmails = $this->configuredTriadEmails();
+
         return [
-            'triad_configured' => count($this->resolveTriadUserIds()) === 3,
+            'triad_configured' => count($triadEmails) === 3 && count($this->resolveTriadUserIds()) === 3,
+            'triad_email_count' => count($triadEmails),
             'admin_pair_configured' => count($this->resolveAdminPairUserIds()) === 2,
         ];
     }
@@ -30,8 +33,33 @@ class LeaveCoverageGuard
         Carbon $effectiveEnd,
         array $excludeLeaveRequestIds = [],
     ): void {
+        $this->assertTriadGroupReadyForMember($requester);
         $this->assertTriadCoverage($requester, $effectiveStart, $effectiveEnd, $excludeLeaveRequestIds);
         $this->assertAdminPairCoverage($requester, $effectiveStart, $effectiveEnd, $excludeLeaveRequestIds);
+    }
+
+    /**
+     * Fail closed when a triad-listed employee submits leave but the group is not fully configured.
+     */
+    public function assertTriadGroupReadyForMember(User $requester): void
+    {
+        $configuredEmails = $this->configuredTriadEmails();
+        if ($configuredEmails === []) {
+            return;
+        }
+
+        $requesterEmail = strtolower(trim((string) $requester->email));
+        if (! in_array($requesterEmail, $configuredEmails, true)) {
+            return;
+        }
+
+        $resolvedIds = $this->resolveTriadUserIds();
+        if (count($configuredEmails) !== 3 || count($resolvedIds) !== 3) {
+            throw ValidationException::withMessages([
+                'start_date' => 'Operational coverage group is not fully configured (need three active matching accounts). '
+                    .'Leave cannot be processed until WORKFORCE_LEAVE_COVERAGE_TRIAD_EMAILS is complete.',
+            ]);
+        }
     }
 
     /**
@@ -44,7 +72,7 @@ class LeaveCoverageGuard
         array $excludeLeaveRequestIds,
     ): void {
         $triadIds = $this->resolveTriadUserIds();
-        if ($triadIds === [] || count($triadIds) < 3) {
+        if (count($this->configuredTriadEmails()) !== 3 || count($triadIds) !== 3) {
             return;
         }
 
@@ -164,11 +192,17 @@ class LeaveCoverageGuard
     /**
      * @return list<int>
      */
+    /**
+     * @return list<string>
+     */
+    public function configuredTriadEmails(): array
+    {
+        return config('leave_policy.coverage.triad_emails', []);
+    }
+
     public function resolveTriadUserIds(): array
     {
-        return $this->resolveUserIdsFromEmails(
-            config('leave_policy.coverage.triad_emails', []),
-        );
+        return $this->resolveUserIdsFromEmails($this->configuredTriadEmails());
     }
 
     /**
