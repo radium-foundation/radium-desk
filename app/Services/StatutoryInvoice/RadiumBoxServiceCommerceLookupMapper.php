@@ -9,6 +9,10 @@ use App\Support\BusinessOrderId;
 
 final class RadiumBoxServiceCommerceLookupMapper
 {
+    public function __construct(
+        private ?RadiumBoxServiceCommerceSpokeOverlay $overlay = null,
+    ) {}
+
     /**
      * @param  array<string, mixed>  $payload
      */
@@ -36,6 +40,9 @@ final class RadiumBoxServiceCommerceLookupMapper
         }
 
         $commerce = is_array($data['service_commerce'] ?? null) ? $data['service_commerce'] : null;
+        if ($commerce === null) {
+            $commerce = $this->spokeOverlay()->synthesize($data, $expectedOrderId);
+        }
         if ($commerce === null) {
             throw new RadiumBoxInvalidResponseException('RadiumBox service lookup response is missing service_commerce.');
         }
@@ -121,5 +128,14 @@ final class RadiumBoxServiceCommerceLookupMapper
         }
 
         return round((float) $value, 2);
+    }
+
+    private function spokeOverlay(): RadiumBoxServiceCommerceSpokeOverlay
+    {
+        if ($this->overlay === null) {
+            $this->overlay = new RadiumBoxServiceCommerceSpokeOverlay;
+        }
+
+        return $this->overlay;
     }
 }

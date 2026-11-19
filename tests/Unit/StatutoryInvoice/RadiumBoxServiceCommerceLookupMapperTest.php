@@ -70,4 +70,32 @@ class RadiumBoxServiceCommerceLookupMapperTest extends TestCase
         $this->assertSame(507.63, $lookup->baseTaxableValue);
         $this->assertSame(607.63, $lookup->taxableValue);
     }
+
+    public function test_overlay_builds_lookup_when_service_commerce_is_absent(): void
+    {
+        $lookup = $this->mapper->map([
+            'status' => 200,
+            'data' => [
+                'snapshot' => [
+                    'address' => 'Lucknow',
+                    'pincode' => '226001',
+                    'serial_number' => '123',
+                    'rd_service' => '3 Year Unlimited',
+                ],
+                'rd_order' => [
+                    'rdorderid' => 'RB1040',
+                    'state' => 'Uttar Pradesh',
+                    'district' => 'Lucknow',
+                    'amount' => 744.92,
+                    'tax_amount' => 134.08,
+                    'paid_amount' => 879,
+                    'rd_service_name' => '3 Year Unlimited',
+                    'serial_no' => '123',
+                ],
+            ],
+        ], 'RB1040');
+
+        $this->assertSame('RB1040', $lookup->rdOrderId);
+        $this->assertSame(879.0, $lookup->lineTotal);
+    }
 }
