@@ -500,7 +500,7 @@ class HardwareFulfilmentOperationalWorkflowTest extends TestCase
         $this->assertSame('Out for Pickup', $shipment->provider_track_status);
         $this->assertSame('out_for_pickup', $shipment->provider_track_normalized);
         $this->assertSame(0, $this->fake->pickups);
-        $this->assertSame(1, $this->fake->tracks);
+        $this->assertSame(2, $this->fake->tracks); // AWB assign + pickup reconcile track
         $this->assertTrue(
             HardwareFulfilmentEvent::query()
                 ->where('hardware_fulfilment_id', $fulfilment->id)
@@ -533,7 +533,7 @@ class HardwareFulfilmentOperationalWorkflowTest extends TestCase
 
         $this->assertNotNull(Shipment::query()->firstOrFail()->pickup_requested_at);
         $this->assertSame(1, $this->fake->pickups);
-        $this->assertSame(2, $this->fake->tracks);
+        $this->assertSame(3, $this->fake->tracks); // AWB assign + pickup recovery tracks
         Http::assertNothingSent();
     }
 
@@ -555,7 +555,7 @@ class HardwareFulfilmentOperationalWorkflowTest extends TestCase
 
         $this->assertNull(Shipment::query()->firstOrFail()->pickup_requested_at);
         $this->assertSame(1, $this->fake->pickups);
-        $this->assertSame(2, $this->fake->tracks);
+        $this->assertSame(3, $this->fake->tracks); // AWB assign + pickup recovery tracks
         Http::assertNothingSent();
     }
 
@@ -603,7 +603,7 @@ class HardwareFulfilmentOperationalWorkflowTest extends TestCase
             ->assertSessionHas('status', 'Pickup requested.');
 
         $this->assertSame(0, $this->fake->pickups);
-        $this->assertSame(1, $this->fake->tracks);
+        $this->assertSame(2, $this->fake->tracks); // AWB assign + first pickup reconcile only
         $this->assertSame(
             $requestedAt,
             Shipment::query()->firstOrFail()->pickup_requested_at?->toDateTimeString(),
