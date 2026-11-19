@@ -25,6 +25,8 @@ final class CommerceBuyerGstMintGate
      */
     public function blockingReasonsForOrder(CommerceOrder $order): array
     {
+        $this->b2cConversions->ensureAutomaticConversion($order);
+
         if ($this->b2cConversions->approvedConversion($order) !== null) {
             return [];
         }

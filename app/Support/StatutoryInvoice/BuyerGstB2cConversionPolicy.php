@@ -3,40 +3,17 @@
 namespace App\Support\StatutoryInvoice;
 
 use App\Enums\BuyerGstVerificationStatus;
+use App\Models\CommerceOrder;
 use App\Models\CommerceOrderBuyerGstVerification;
+use App\Services\StatutoryInvoice\BuyerGstin;
+use App\Support\Finance\GstStateCodes;
 
 /**
- * Which provider outcomes may be manually converted to B2C after Finance/CA authorization.
- *
- * Provider outages and ambiguous responses must remain in review — never auto-B2C.
+ * When buyer GSTIN cannot support B2B billing, automatic B2C conversion applies
+ * while verification and provider evidence remain in the audit trail.
  */
 final class BuyerGstB2cConversionPolicy
 {
-    /**
-     * @var list<string>
-     */
-    private const ELIGIBLE_REVIEW_REASONS = [
-        'inactive_registration',
-        'invalid_gstin_format',
-        'invalid_gstin_response',
-    ];
-
-    /**
-     * @var list<string>
-     */
-    private const HOLD_REVIEW_REASONS = [
-        'provider_unavailable',
-        'provider_timeout',
-        'provider_rate_limited',
-        'provider_malformed_response',
-        'provider_error',
-        'verification_not_run',
-        'verification_provider_unconfigured',
-        'incomplete_registration_snapshot',
-        'registration_address_incomplete',
-        'gstin_state_mismatch',
-    ];
-
     public static function fallbackPolicyEnabled(): bool
     {
         return (bool) config('statutory_invoices.buyer_gstin_verification.b2c_fallback.enabled', false);
@@ -44,24 +21,130 @@ final class BuyerGstB2cConversionPolicy
 
     public static function isEligibleForManualConversion(?CommerceOrderBuyerGstVerification $record): bool
     {
-        if ($record === null || ! self::fallbackPolicyEnabled()) {
+        return self::isEligibleForAutomaticConversion($record, null);
+    }
+
+    public static function isEligibleForAutomaticConversion(
+        ?CommerceOrderBuyerGstVerification $record,
+        ?CommerceOrder $order = null,
+    ): bool {
+        if (! self::fallbackPolicyEnabled()) {
             return false;
         }
 
-        if (! in_array($record->verification_status, [
-            BuyerGstVerificationStatus::ReviewRequired,
+        if ($record === null) {
+            return $order !== null && self::localGstinBlocksB2b($order);
+        }
+
+        if (self::qualifiesForB2bBilling($record)) {
+            return false;
+        }
+
+        return in_array($record->verification_status, [
+            BuyerGstVerificationStatus::Pending,
             BuyerGstVerificationStatus::Failed,
-        ], true)) {
+            BuyerGstVerificationStatus::ReviewRequired,
+        ], true);
+    }
+
+    public static function qualifiesForB2bBilling(CommerceOrderBuyerGstVerification $record): bool
+    {
+        if ($record->verification_status !== BuyerGstVerificationStatus::Verified) {
             return false;
         }
 
-        $reason = (string) ($record->review_reason ?? '');
-
-        if (in_array($reason, self::HOLD_REVIEW_REASONS, true)) {
+        $registration = strtolower(trim((string) ($record->registration_status ?? '')));
+        if (! in_array($registration, ['active', 'provisional'], true)) {
             return false;
         }
 
-        return in_array($reason, self::ELIGIBLE_REVIEW_REASONS, true);
+        if ($record->bill_to_address_structured === null) {
+            return false;
+        }
+
+        $gstin = BuyerGstin::normalize($record->submitted_gstin);
+        if ($gstin === null) {
+            return false;
+        }
+
+        $billTo = StatutoryBillingStructured::fromStored($record->bill_to_address_structured);
+        if ($billTo === null) {
+            return false;
+        }
+
+        $billingStateCode = GstStateCodes::codeForName((string) ($billTo['state'] ?? ''));
+        $gstinStateCode = BuyerGstin::stateCode($gstin);
+        if ($billingStateCode !== null
+            && $gstinStateCode !== null
+            && $billingStateCode !== $gstinStateCode) {
+            return false;
+        }
+
+        return true;
+    }
+
+    public static function localGstinBlocksB2b(CommerceOrder $order): bool
+    {
+        if (! (bool) config('statutory_invoices.buyer_gstin_verification.enabled', false)) {
+            return false;
+        }
+
+        $submitted = trim((string) ($order->buyer_gstin ?? ''));
+        if ($submitted === '') {
+            return false;
+        }
+
+        $normalized = BuyerGstin::normalize($submitted);
+
+        return $normalized === null
+            || strlen($normalized) < 15
+            || ! BuyerGstin::isValid($normalized);
+    }
+
+    /**
+     * @return array{
+     *     submitted_gstin: string,
+     *     verification_status: string,
+     *     registration_status: ?string,
+     *     review_reason: string,
+     *     commerce_order_buyer_gst_verification_id: ?int,
+     *     provider_payload_hash: ?string,
+     * }|null
+     */
+    public static function automaticConversionSnapshot(
+        CommerceOrder $order,
+        ?CommerceOrderBuyerGstVerification $record,
+    ): ?array {
+        if ($record !== null) {
+            return [
+                'submitted_gstin' => $record->submitted_gstin,
+                'verification_status' => $record->verification_status->value,
+                'registration_status' => $record->registration_status,
+                'review_reason' => (string) ($record->review_reason ?? 'verification_review'),
+                'commerce_order_buyer_gst_verification_id' => $record->id,
+                'provider_payload_hash' => $record->provider_payload_hash,
+            ];
+        }
+
+        if (! self::localGstinBlocksB2b($order)) {
+            return null;
+        }
+
+        $submitted = trim((string) ($order->buyer_gstin ?? ''));
+        $normalized = BuyerGstin::normalize($submitted);
+        $gstinForAudit = $normalized ?? strtoupper(substr($submitted, 0, 15));
+        $reason = $normalized === null || strlen((string) $normalized) < 15
+            ? 'gstin_incomplete'
+            : 'gstin_invalid';
+
+        return [
+            'submitted_gstin' => $gstinForAudit,
+            'verification_status' => BuyerGstVerificationStatus::Failed->value,
+            'registration_status' => null,
+            'review_reason' => $reason,
+            'commerce_order_buyer_gst_verification_id' => null,
+            'provider_payload_hash' => null,
+        ];
     }
 
     public static function maskedGstinForRemark(string $gstin): string
@@ -81,13 +164,25 @@ final class BuyerGstB2cConversionPolicy
     ): string {
         $statusLabel = $registrationStatus !== null && $registrationStatus !== ''
             ? $registrationStatus
-            : 'unverified';
+            : null;
 
         return match ($reviewReason) {
             'inactive_registration' => "B2C issued: buyer GSTIN {$maskedGstin} registration status {$statusLabel} (GST verification).",
             'invalid_gstin_format' => "B2C issued: buyer GSTIN {$maskedGstin} could not be verified (format).",
             'invalid_gstin_response' => "B2C issued: buyer GSTIN {$maskedGstin} failed provider validation.",
-            default => "B2C issued: buyer GSTIN {$maskedGstin} requires GST verification review ({$reviewReason}).",
+            'incomplete_registration_snapshot' => "B2C issued: buyer GSTIN {$maskedGstin}; GST registration snapshot incomplete (verification).",
+            'registration_address_incomplete' => "B2C issued: buyer GSTIN {$maskedGstin}; GST registration address incomplete (verification).",
+            'gstin_state_mismatch' => "B2C issued: buyer GSTIN {$maskedGstin}; GSTIN conflicts with verified billing state (verification).",
+            'gstin_invalid' => "B2C issued: buyer GSTIN {$maskedGstin} invalid (format check).",
+            'gstin_incomplete' => "B2C issued: buyer GSTIN {$maskedGstin} incomplete (format check).",
+            'provider_timeout' => "B2C issued: buyer GSTIN {$maskedGstin}; GST provider verification did not complete (timeout).",
+            'provider_unavailable' => "B2C issued: buyer GSTIN {$maskedGstin}; GST provider verification unavailable.",
+            'provider_rate_limited' => "B2C issued: buyer GSTIN {$maskedGstin}; GST provider rate limited.",
+            'provider_malformed_response' => "B2C issued: buyer GSTIN {$maskedGstin}; GST provider returned an unusable response.",
+            'provider_error' => "B2C issued: buyer GSTIN {$maskedGstin}; GST provider verification error.",
+            'verification_not_run' => "B2C issued: buyer GSTIN {$maskedGstin}; GST verification did not complete.",
+            'verification_provider_unconfigured' => "B2C issued: buyer GSTIN {$maskedGstin}; GST verification provider not configured.",
+            default => "B2C issued: buyer GSTIN {$maskedGstin}; GST verification outcome {$reviewReason}.",
         };
     }
 }

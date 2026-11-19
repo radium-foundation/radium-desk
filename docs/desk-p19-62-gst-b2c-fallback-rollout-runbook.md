@@ -27,7 +27,7 @@
 | A | Both flags **OFF** | Deploy code + migrations only; verify app health |
 | B | `STATUTORY_BUYER_GSTIN_VERIFICATION_ENABLED=true` (UAT/staging first) | Provider lookups on state mismatch; still no auto B2C |
 | C | Protected customer journeys on UAT | Active, Suspended, provider failure, manual conversion |
-| D | `STATUTORY_BUYER_GSTIN_B2C_FALLBACK_ENABLED=true` (UAT, then prod if approved) | Manual conversion UI/API + audit |
+| D | `STATUTORY_BUYER_GSTIN_B2C_FALLBACK_ENABLED=true` (UAT, then prod if approved) | Automatic B2C conversion on GSTIN B2B ineligibility + audit (P-19-65); manual `approve()` optional override |
 | E | Production monitoring | GST review queue volume, conversion approvals, mint B2B/B2C split |
 
 **Keep migration authorization separate from flag activation authorization.**
@@ -35,8 +35,8 @@
 ## UAT journeys (minimum)
 
 - Active GSTIN + verified Bill To → B2B mint unchanged.
-- Suspended/Cancelled → review → authorized B2C → mint without recipient GSTIN + remark.
-- Timeout / 429 / 5xx / malformed → review hold; conversion rejected.
+- Suspended/Cancelled → automatic B2C audit row → mint without recipient GSTIN + masked remark.
+- Timeout / 429 / 5xx / malformed → automatic B2C with technical remark (no false “invalid GSTIN” claim).
 - Post-mint order → conversion rejected (correction/cancel flow only).
 - Concurrent duplicate approval → single audit row.
 

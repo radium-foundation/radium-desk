@@ -23,6 +23,7 @@ final class ServiceStatutoryGstB2bClassification
 
     public function resolveForServiceOrder(CommerceOrder $order): ServiceStatutoryGstIssuanceDecision
     {
+        $this->b2cConversions->ensureAutomaticConversion($order);
         $authorizedB2c = $this->b2cConversions->approvedConversion($order);
         if ($authorizedB2c !== null) {
             return new ServiceStatutoryGstIssuanceDecision(

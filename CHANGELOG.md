@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — P-19-65 automatic GSTIN failure-to-B2C
+
+- When `STATUTORY_BUYER_GSTIN_B2C_FALLBACK_ENABLED` is on, orders with B2B-ineligible buyer GSTIN outcomes convert to B2C automatically (`ensureAutomaticConversion`); manual approval is no longer a mint blocker.
+- Provider/technical verification failures issue B2C with factual technical footer remarks (masked GSTIN).
+- Classification matrix: `docs/desk-p19-65-gst-auto-b2c-classification.md`.
+
 ## 4.1.101 — 2026-11-19 — POS composite-supply shipping for e-Invoice (P-19-52)
 
 - **Statutory:** Reconcile POS header `shipping_amount` GST for e-Invoice guards/mapper; synthetic shipping IRP line when snapshot reconciles.

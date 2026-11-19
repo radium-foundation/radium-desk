@@ -14,7 +14,6 @@ use App\Models\CommerceOrderBuyerGstB2cConversion;
 use App\Models\CommerceOrderBuyerGstVerification;
 use App\Models\EInvoiceRecord;
 use App\Models\StatutoryInvoice;
-use App\Models\User;
 use App\Services\StatutoryInvoice\CommerceOrderBuyerGstB2cConversionService;
 use App\Services\StatutoryInvoice\Data\StatutoryInvoicePdfPayload;
 use App\Services\StatutoryInvoice\EInvoiceEligibility;
@@ -165,8 +164,8 @@ class CommerceOrderBuyerGstB2cBillingRuleTest extends TestCase
             'provider_payload_hash' => hash('sha256', 'fixture'),
         ]);
 
-        $user = User::factory()->create();
-        $conversion = app(CommerceOrderBuyerGstB2cConversionService::class)->approve($order->fresh(), $user, 'CA approved');
+        $conversion = app(CommerceOrderBuyerGstB2cConversionService::class)->ensureAutomaticConversion($order->fresh());
+        $this->assertNotNull($conversion);
 
         return [$order->fresh(), $conversion];
     }
@@ -197,5 +196,4 @@ class CommerceOrderBuyerGstB2cBillingRuleTest extends TestCase
             'issued_at' => now(),
         ]);
     }
-
 }
