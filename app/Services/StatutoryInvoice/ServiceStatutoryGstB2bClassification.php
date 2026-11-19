@@ -18,10 +18,21 @@ final class ServiceStatutoryGstB2bClassification
 {
     public function __construct(
         private readonly CommerceOrderBuyerGstVerificationService $buyerGstVerification,
+        private readonly CommerceOrderBuyerGstB2cConversionService $b2cConversions,
     ) {}
 
     public function resolveForServiceOrder(CommerceOrder $order): ServiceStatutoryGstIssuanceDecision
     {
+        $authorizedB2c = $this->b2cConversions->approvedConversion($order);
+        if ($authorizedB2c !== null) {
+            return new ServiceStatutoryGstIssuanceDecision(
+                issueAsB2b: false,
+                buyerGstinForMint: null,
+                b2cDowngradeCode: 'gstin_verification_b2c_conversion',
+                statutoryIssuanceNote: $authorizedB2c->invoice_remark,
+            );
+        }
+
         $submitted = trim((string) ($order->buyer_gstin ?? ''));
         if ($submitted === '') {
             return new ServiceStatutoryGstIssuanceDecision(

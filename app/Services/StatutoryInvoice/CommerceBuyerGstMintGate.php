@@ -17,6 +17,7 @@ final class CommerceBuyerGstMintGate
 {
     public function __construct(
         private readonly CommerceOrderBuyerGstVerificationService $verifications,
+        private readonly CommerceOrderBuyerGstB2cConversionService $b2cConversions,
     ) {}
 
     /**
@@ -24,6 +25,10 @@ final class CommerceBuyerGstMintGate
      */
     public function blockingReasonsForOrder(CommerceOrder $order): array
     {
+        if ($this->b2cConversions->approvedConversion($order) !== null) {
+            return [];
+        }
+
         if (! $this->verifications->requiresProviderVerification($order)) {
             return [];
         }
@@ -62,6 +67,13 @@ final class CommerceBuyerGstMintGate
             ->first();
         if ($order === null) {
             return [];
+        }
+
+        if ($this->b2cConversions->approvedConversion($order) !== null) {
+            $requestedGstin = BuyerGstin::normalize($request->buyerGstin);
+            if ($requestedGstin !== null) {
+                return ['B2B mint is blocked after authorized B2C conversion.'];
+            }
         }
 
         return $this->blockingReasonsForOrder($order);

@@ -128,6 +128,13 @@ return [
     'buyer_gstin_verification' => [
         'enabled' => filter_var(env('STATUTORY_BUYER_GSTIN_VERIFICATION_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
         'provider' => env('STATUTORY_BUYER_GSTIN_VERIFICATION_PROVIDER', 'whitebooks'),
+        /*
+         * Manual B2C fallback after Finance/CA authorization when verification confirms
+         * inactive/invalid registration. Default disabled; never auto-converts on provider errors.
+         */
+        'b2c_fallback' => [
+            'enabled' => filter_var(env('STATUTORY_BUYER_GSTIN_B2C_FALLBACK_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
+        ],
     ],
 
     /*

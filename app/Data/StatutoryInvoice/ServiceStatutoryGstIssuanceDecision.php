@@ -10,10 +10,15 @@ final class ServiceStatutoryGstIssuanceDecision
         public readonly ?string $b2cDowngradeCode,
         public readonly bool $requiresGstReview = false,
         public readonly ?string $gstReviewReason = null,
+        public readonly ?string $statutoryIssuanceNote = null,
     ) {}
 
     public function c360Note(): ?string
     {
+        if ($this->statutoryIssuanceNote !== null && trim($this->statutoryIssuanceNote) !== '') {
+            return $this->statutoryIssuanceNote;
+        }
+
         return match ($this->b2cDowngradeCode) {
             'gstin_incomplete' => 'GSTIN incomplete — B2C invoice issued.',
             'gstin_invalid' => 'GSTIN invalid — B2C invoice issued.',

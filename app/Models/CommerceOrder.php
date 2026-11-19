@@ -98,4 +98,9 @@ class CommerceOrder extends Model
     {
         return $this->hasOne(CommerceOrderBuyerGstVerification::class);
     }
+
+    public function buyerGstB2cConversion(): HasOne
+    {
+        return $this->hasOne(CommerceOrderBuyerGstB2cConversion::class);
+    }
 }
