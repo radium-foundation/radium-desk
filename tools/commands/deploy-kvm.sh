@@ -295,7 +295,11 @@ run_remote_post_sync() {
     php_exec route:cache
     print_success "Laravel caches rebuilt (including route cache)"
 
-    kvm_restart_supervisor_worker
+    if [[ "${DEPLOY_KVM_SKIP_SUPERVISOR_RESTART:-0}" == "1" ]]; then
+        print_warning "Skipping Supervisor restart (DEPLOY_KVM_SKIP_SUPERVISOR_RESTART=1)"
+    else
+        kvm_restart_supervisor_worker
+    fi
 }
 
 # Deprecated production-only marker; never synced or recreated by KVM deploy.
