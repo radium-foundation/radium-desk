@@ -132,6 +132,7 @@
         ])
         @include('customer-360.partials.statutory-invoice', [
             'statutoryInvoices' => $statutoryInvoices ?? [],
+            'statutoryMintOutbox' => $statutoryMintOutbox ?? null,
         ])
         @include('customer-360.partials.communication-section', [
             'communicationSection' => $communicationSection ?? null,

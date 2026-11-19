@@ -29,6 +29,7 @@ use App\Services\ConversationWorkspace\ConversationWorkspaceSessionService;
 use App\Services\Customer360\Customer360ActionVisibilityService;
 use App\Services\Customer360\Customer360RecentCommunicationService;
 use App\Services\Customer360\Customer360StatutoryInvoicePresenter;
+use App\Services\Customer360\Customer360StatutoryMintOutboxPresenter;
 use App\Services\Customer360\Intelligence\CaseIntelligenceEngine;
 use App\Services\HistoricalInvoice\HistoricalInvoiceLookupService;
 use App\Services\IncomingEmail\IncomingEmailWorkspaceReadState;
@@ -129,6 +130,8 @@ class Customer360Service
             $user instanceof User ? $user : null,
         );
         $data['statutoryInvoices'] = app(Customer360StatutoryInvoicePresenter::class)
+            ->forIncident($incident, $user instanceof User ? $user : null);
+        $data['statutoryMintOutbox'] = app(Customer360StatutoryMintOutboxPresenter::class)
             ->forIncident($incident, $user instanceof User ? $user : null);
 
         return $data;
@@ -1225,6 +1228,7 @@ class Customer360Service
             'supportAppointments' => collect(),
             'hardwareFulfilment' => null,
             'statutoryInvoices' => [],
+            'statutoryMintOutbox' => null,
             'executiveSummaryUrl' => route('dashboard.service-cases.customer-360.executive-summary', $incident),
             'timelineTabUrl' => route('dashboard.service-cases.customer-360.timeline', $incident).'?tab=1',
             'aiTabUrl' => route('dashboard.service-cases.customer-360.ai-workbench', $incident),

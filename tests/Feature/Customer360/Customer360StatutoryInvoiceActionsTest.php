@@ -100,7 +100,8 @@ class Customer360StatutoryInvoiceActionsTest extends TestCase
             ->get(route('dashboard.service-cases.customer-360', $incident))
             ->assertOk()
             ->assertSee('data-customer-360-section="statutory-invoice"', false)
-            ->assertSee('No invoice has been generated for this order.', false)
+            ->assertSee('data-c360-statutory-mint-outbox', false)
+            ->assertSee('no statutory mint outbox record exists', false)
             ->assertDontSee('View Invoice', false)
             ->assertDontSee('Download PDF', false);
     }

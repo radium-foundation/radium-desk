@@ -97,8 +97,50 @@
             @endif
         </div>
     @empty
-        <p class="c360-statutory-invoice-empty mb-0" data-c360-invoice-empty>
-            No invoice has been generated for this order.
-        </p>
+        @php($mintOutbox = $statutoryMintOutbox ?? null)
+        @if(is_array($mintOutbox))
+            <div class="c360-statutory-mint-outbox"
+                 data-c360-statutory-mint-outbox
+                 role="status"
+                 aria-live="polite">
+                <p class="c360-statutory-invoice-empty mb-2" data-c360-invoice-empty>
+                    {{ $mintOutbox['empty_summary'] ?? 'No invoice has been generated for this order.' }}
+                </p>
+                <dl class="c360-statutory-invoice-meta mb-0">
+                    <div>
+                        <dt>Mint status</dt>
+                        <dd>{{ $mintOutbox['status_label'] ?? '—' }}</dd>
+                    </div>
+                    @if(filled($mintOutbox['updated_at_label'] ?? null))
+                        <div>
+                            <dt>Last updated</dt>
+                            <dd>{{ $mintOutbox['updated_at_label'] }}</dd>
+                        </div>
+                    @endif
+                    @if(filled($mintOutbox['order_reference'] ?? null))
+                        <div>
+                            <dt>Order ref.</dt>
+                            <dd>{{ $mintOutbox['order_reference'] }}</dd>
+                        </div>
+                    @endif
+                    @if(filled($mintOutbox['service_case_reference'] ?? null))
+                        <div>
+                            <dt>Service case</dt>
+                            <dd>{{ $mintOutbox['service_case_reference'] }}</dd>
+                        </div>
+                    @endif
+                    @if(filled($mintOutbox['failure_reason'] ?? null))
+                        <div>
+                            <dt>Failure reason</dt>
+                            <dd>{{ $mintOutbox['failure_reason'] }}</dd>
+                        </div>
+                    @endif
+                </dl>
+            </div>
+        @else
+            <p class="c360-statutory-invoice-empty mb-0" data-c360-invoice-empty>
+                No invoice has been generated for this order.
+            </p>
+        @endif
     @endforelse
 </section>
