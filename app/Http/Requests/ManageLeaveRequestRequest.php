@@ -39,6 +39,7 @@ class ManageLeaveRequestRequest extends FormRequest
             'proposed_start_date' => ['required', 'date', 'after_or_equal:'.$earliestStartDate],
             'proposed_end_date' => ['required', 'date', 'after_or_equal:proposed_start_date'],
             'proposed_duration' => ['required', 'string', Rule::in(LeaveDuration::values())],
+            'half_day_exception' => ['sometimes', 'boolean'],
             'reason' => ['required', 'string', 'max:2000'],
             'review_notes' => ['required', 'string', 'max:2000'],
         ];
@@ -52,6 +53,12 @@ class ManageLeaveRequestRequest extends FormRequest
             }
 
             if ($this->input('proposed_duration') !== LeaveDuration::HalfDay->value) {
+                return;
+            }
+
+            if (! filter_var($this->input('half_day_exception', false), FILTER_VALIDATE_BOOL)) {
+                $validator->errors()->add('half_day_exception', 'Half-day requires Management exception confirmation.');
+
                 return;
             }
 

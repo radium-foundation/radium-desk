@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.1.95 — 2026-11-19 — Leave policy controls (P-19-15)
+
+- **Purpose:** Company leave policy: full-day default; HR half-day exceptions; Sunday sandwich for Sat/Mon short notice; coverage groups (triad + admin pair); two manual exceptions per month; authorized overrides; auto-approval framework disabled without leave-balance ledger.
+- **Migrations:** `2026_11_19_100000_add_leave_policy_columns_to_leave_requests_table.php`.
+- **Configuration:** `config/leave_policy.php`, `WORKFORCE_LEAVE_COVERAGE_TRIAD_EMAILS`, `WORKFORCE_LEAVE_ADMIN_PAIR_LEAVE_EMAILS`.
+- **Evidence:** `LeavePolicyControlsTest` **7/7**; leave notification/regression focused suites (full suite **NOT RUN**).
+
 ## 4.1.94 — 2026-11-19 — Dashboard search UI and exact order-ID lookup (P-19-07 / P-19-02)
 
 - **Purpose (P-19-07):** Remove the duplicate **Customer service order history** panel from dashboard global search results; keep intake and Quick Create order-history panels and the `/search` `order_history` payload unchanged. Simplify multi-hit search actions to Customer 360 / Reopen only. Improve service-case row readability (order-id contrast, truncation, tooltips, search-match highlight).

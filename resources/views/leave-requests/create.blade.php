@@ -11,13 +11,14 @@
             </ol>
         </nav>
         <h1 class="h3 mb-1">Request Leave</h1>
-        <p class="text-muted mb-0">Submit leave for operations approval. Pending leave does not block assignment.</p>
+        <p class="text-muted mb-0">Full-day leave is the default. Coverage or policy exceptions require Management review and do not guarantee approval.</p>
     </div>
 
     <div class="card border-0 shadow-sm">
         <div class="card-body">
             <form method="POST" action="{{ route('leave-requests.store') }}">
                 @csrf
+                <input type="hidden" name="duration" value="full_day">
 
                 <div class="row g-3">
                     <div class="col-md-6">
@@ -38,18 +39,6 @@
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
                     </div>
-                    <div class="col-md-6">
-                        <label for="duration" class="form-label">Duration</label>
-                        <select id="duration" name="duration"
-                                class="form-select @error('duration') is-invalid @enderror" required>
-                            <option value="full_day" @selected(old('duration', 'full_day') === 'full_day')>Full Day</option>
-                            <option value="half_day" @selected(old('duration') === 'half_day')>Half Day</option>
-                        </select>
-                        @error('duration')
-                            <div class="invalid-feedback">{{ $message }}</div>
-                        @enderror
-                        <div class="form-text">Half day leave must use the same start and end date.</div>
-                    </div>
                     <div class="col-12">
                         <label for="reason" class="form-label">Reason</label>
                         <textarea id="reason" name="reason" rows="4"
@@ -58,6 +47,20 @@
                         @error('reason')
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
+                    </div>
+                    <div class="col-12">
+                        <div class="form-check">
+                            <input type="checkbox" name="manual_exception" value="1" id="manual_exception"
+                                   class="form-check-input @error('manual_exception') is-invalid @enderror"
+                                   @checked(old('manual_exception'))>
+                            <label class="form-check-label" for="manual_exception">
+                                This is a manual policy exception (coverage conflict, weekend sandwich, or monthly limit).
+                            </label>
+                            @error('manual_exception')
+                                <div class="invalid-feedback d-block">{{ $message }}</div>
+                            @enderror
+                            <div class="form-text">Submitting an exception does not approve leave. Management will review role coverage before deciding.</div>
+                        </div>
                     </div>
                 </div>
 

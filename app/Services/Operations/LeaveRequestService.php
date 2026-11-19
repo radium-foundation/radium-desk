@@ -4,6 +4,7 @@ namespace App\Services\Operations;
 
 use App\Contracts\Workforce\WorkforceEventPublisher;
 use App\Data\Workforce\WorkforceEvent;
+use App\Enums\LeaveApprovalSource;
 use App\Enums\LeaveDuration;
 use App\Enums\LeavePayClass;
 use App\Enums\LeaveRequestStatus;
@@ -17,6 +18,9 @@ use App\Notifications\LeaveRequestDecisionNotification;
 use App\Notifications\LeaveRequestSubmittedNotification;
 use App\Services\AuditLogService;
 use App\Services\Notifications\NotificationAuthorityService;
+use App\Services\Operations\LeavePolicy\LeaveCoverageGuard;
+use App\Services\Operations\LeavePolicy\LeaveManualExceptionGuard;
+use App\Services\Operations\LeavePolicy\LeavePolicyOrchestrator;
 use App\Services\Telegram\TelegramBotService;
 use App\Services\Workforce\PayrollMonthLockService;
 use Illuminate\Support\Carbon;
@@ -33,6 +37,9 @@ class LeaveRequestService
         private readonly AttendanceRegisterService $attendanceRegisterService,
         private readonly WorkforceEventPublisher $workforceEventPublisher,
         private readonly PayrollMonthLockService $payrollMonthLockService,
+        private readonly LeavePolicyOrchestrator $leavePolicyOrchestrator,
+        private readonly LeaveCoverageGuard $leaveCoverageGuard,
+        private readonly LeaveManualExceptionGuard $leaveManualExceptionGuard,
     ) {}
 
     public function earliestPermittedStartDate(?Carbon $at = null): Carbon
@@ -45,7 +52,7 @@ class LeaveRequestService
     }
 
     /**
-     * @param  array{start_date: string, end_date: string, reason: string, duration?: string, pay_class?: string}  $data
+     * @param  array{start_date: string, end_date: string, reason: string, duration?: string, pay_class?: string, manual_exception?: bool|int|string}  $data
      */
     public function submit(User $requester, array $data): LeaveRequest
     {
@@ -53,24 +60,54 @@ class LeaveRequestService
         $endDate = Carbon::parse($data['end_date'])->startOfDay();
         $duration = LeaveDuration::tryFrom((string) ($data['duration'] ?? LeaveDuration::FullDay->value))
             ?? LeaveDuration::FullDay;
+        $manualException = filter_var($data['manual_exception'] ?? false, FILTER_VALIDATE_BOOL);
 
-        $leaveRequest = DB::transaction(function () use ($requester, $data, $startDate, $endDate, $duration): LeaveRequest {
+        $leaveRequest = DB::transaction(function () use ($requester, $data, $startDate, $endDate, $duration, $manualException): LeaveRequest {
             $this->lockActiveLeaveRequestsFor($requester);
-            $this->payrollMonthLockService->assertLeaveWritable($startDate, $endDate);
+            $this->leaveCoverageGuard->lockCoverageGroupRows($requester);
+
+            $this->leavePolicyOrchestrator->assertEmployeeDurationAllowed($duration);
+
+            $submittedAt = now();
+            $policy = $this->leavePolicyOrchestrator->evaluateSubmission(
+                requester: $requester,
+                requestedStart: $startDate,
+                requestedEnd: $endDate,
+                duration: $duration,
+                manualException: $manualException,
+                submittedAt: $submittedAt,
+            );
+
+            $this->payrollMonthLockService->assertLeaveWritable($policy->effectiveStart, $policy->effectiveEnd);
             $this->assertPermittedStartDate($startDate);
             $this->assertValidDateRange($startDate, $endDate);
             $this->assertDurationMatchesRange($duration, $startDate, $endDate);
-            $this->assertNoOverlappingLeave($requester, $startDate, $endDate);
+            $this->assertNoOverlappingLeave($requester, $policy->effectiveStart, $policy->effectiveEnd);
+
+            $autoSnapshot = $this->leavePolicyOrchestrator->autoApprovalSnapshot(
+                $policy,
+                $requester,
+                $duration,
+                $manualException,
+            );
 
             $leaveRequest = LeaveRequest::query()->create([
                 'user_id' => $requester->id,
                 'start_date' => $startDate->toDateString(),
                 'end_date' => $endDate->toDateString(),
+                'policy_effective_start_date' => $policy->effectiveStart->toDateString(),
+                'policy_effective_end_date' => $policy->effectiveEnd->toDateString(),
                 'reason' => $data['reason'],
                 'duration' => $duration,
                 'pay_class' => LeavePayClass::tryFrom((string) ($data['pay_class'] ?? LeavePayClass::Paid->value))
                     ?? LeavePayClass::Paid,
                 'status' => LeaveRequestStatus::Pending,
+                'approval_source' => LeaveApprovalSource::Manual,
+                'policy_phase' => (string) config('leave_policy.auto_approval.phase', 'pilot_1'),
+                'requires_manual_review' => $policy->requiresManualReview,
+                'is_manual_exception' => $manualException,
+                'notice_calendar_days' => $policy->noticeCalendarDays,
+                'policy_metadata' => array_merge($policy->metadata, ['auto_approval' => $autoSnapshot]),
             ]);
 
             $leaveRequest = $leaveRequest->fresh(['user']);
@@ -83,8 +120,13 @@ class LeaveRequestService
                     'requester_id' => $requester->id,
                     'start_date' => $leaveRequest->start_date->toDateString(),
                     'end_date' => $leaveRequest->end_date->toDateString(),
+                    'policy_effective_start_date' => $leaveRequest->policy_effective_start_date?->toDateString(),
+                    'policy_effective_end_date' => $leaveRequest->policy_effective_end_date?->toDateString(),
                     'duration' => $leaveRequest->duration->value,
                     'status' => LeaveRequestStatus::Pending->value,
+                    'is_manual_exception' => $manualException,
+                    'requires_manual_review' => $policy->requiresManualReview,
+                    'auto_approval' => $autoSnapshot,
                 ],
             );
 
@@ -106,7 +148,9 @@ class LeaveRequestService
         $duration = LeaveDuration::tryFrom((string) ($data['duration'] ?? LeaveDuration::FullDay->value))
             ?? LeaveDuration::FullDay;
 
-        $leaveRequest = DB::transaction(function () use ($requester, $leaveRequest, $data, $startDate, $endDate, $duration): LeaveRequest {
+        $manualException = filter_var($data['manual_exception'] ?? $leaveRequest->is_manual_exception, FILTER_VALIDATE_BOOL);
+
+        $leaveRequest = DB::transaction(function () use ($requester, $leaveRequest, $data, $startDate, $endDate, $duration, $manualException): LeaveRequest {
             $lockedLeaveRequest = $this->lockLeaveRequest($leaveRequest);
 
             if ((int) $lockedLeaveRequest->user_id !== (int) $requester->id) {
@@ -122,22 +166,49 @@ class LeaveRequestService
             }
 
             $this->lockActiveLeaveRequestsFor($requester);
-            $this->payrollMonthLockService->assertLeaveWritable($startDate, $endDate);
+            $this->leaveCoverageGuard->lockCoverageGroupRows($requester);
+            $this->leavePolicyOrchestrator->assertEmployeeDurationAllowed($duration);
+
+            $submittedAt = $lockedLeaveRequest->created_at ?? now();
+            $policy = $this->leavePolicyOrchestrator->evaluateSubmission(
+                requester: $requester,
+                requestedStart: $startDate,
+                requestedEnd: $endDate,
+                duration: $duration,
+                manualException: $manualException,
+                submittedAt: $submittedAt,
+                excludeLeaveRequestId: $lockedLeaveRequest->id,
+            );
+
+            $this->payrollMonthLockService->assertLeaveWritable($policy->effectiveStart, $policy->effectiveEnd);
             $this->assertPermittedStartDate($startDate);
             $this->assertValidDateRange($startDate, $endDate);
             $this->assertDurationMatchesRange($duration, $startDate, $endDate);
             $this->assertNoOverlappingLeave(
                 user: $requester,
-                startDate: $startDate,
-                endDate: $endDate,
+                startDate: $policy->effectiveStart,
+                endDate: $policy->effectiveEnd,
                 excludeLeaveRequestId: $lockedLeaveRequest->id,
+            );
+
+            $autoSnapshot = $this->leavePolicyOrchestrator->autoApprovalSnapshot(
+                $policy,
+                $requester,
+                $duration,
+                $manualException,
             );
 
             $lockedLeaveRequest->fill([
                 'start_date' => $startDate->toDateString(),
                 'end_date' => $endDate->toDateString(),
+                'policy_effective_start_date' => $policy->effectiveStart->toDateString(),
+                'policy_effective_end_date' => $policy->effectiveEnd->toDateString(),
                 'reason' => $data['reason'],
                 'duration' => $duration,
+                'requires_manual_review' => $policy->requiresManualReview,
+                'is_manual_exception' => $manualException,
+                'notice_calendar_days' => $policy->noticeCalendarDays,
+                'policy_metadata' => array_merge($policy->metadata, ['auto_approval' => $autoSnapshot]),
             ])->save();
 
             $lockedLeaveRequest = $lockedLeaveRequest->fresh(['user']);
@@ -182,11 +253,35 @@ class LeaveRequestService
         );
     }
 
-    public function approve(LeaveRequest $leaveRequest, User $reviewer, ?string $reviewNotes = null): LeaveRequest
-    {
+    /**
+     * @param  array{authorized_override?: bool|int|string, authorized_override_reason?: string|null}  $approvalOptions
+     */
+    public function approve(
+        LeaveRequest $leaveRequest,
+        User $reviewer,
+        ?string $reviewNotes = null,
+        array $approvalOptions = [],
+    ): LeaveRequest {
         $this->assertReviewNotesProvided($reviewNotes);
 
-        $leaveRequest = DB::transaction(function () use ($leaveRequest, $reviewer, $reviewNotes): LeaveRequest {
+        $authorizedOverride = filter_var($approvalOptions['authorized_override'] ?? false, FILTER_VALIDATE_BOOL);
+        $overrideReason = $authorizedOverride
+            ? trim((string) ($approvalOptions['authorized_override_reason'] ?? ''))
+            : '';
+
+        if ($authorizedOverride && $overrideReason === '') {
+            throw ValidationException::withMessages([
+                'authorized_override_reason' => 'A reason is required for an authorized Management override.',
+            ]);
+        }
+
+        if ($authorizedOverride && ! $reviewer->can('leave-requests.manage')) {
+            throw ValidationException::withMessages([
+                'authorized_override' => 'Authorized overrides require leave management permission.',
+            ]);
+        }
+
+        $leaveRequest = DB::transaction(function () use ($leaveRequest, $reviewer, $reviewNotes, $authorizedOverride, $overrideReason): LeaveRequest {
             $lockedLeaveRequest = $this->lockLeaveRequest($leaveRequest);
 
             $this->assertCanReview($reviewer, $lockedLeaveRequest);
@@ -197,29 +292,55 @@ class LeaveRequestService
                 ]);
             }
 
-            $this->payrollMonthLockService->assertLeaveWritable(
-                $lockedLeaveRequest->start_date->copy()->startOfDay(),
-                $lockedLeaveRequest->end_date->copy()->startOfDay(),
-            );
+            $effectiveStart = $lockedLeaveRequest->policyEffectiveStart();
+            $effectiveEnd = $lockedLeaveRequest->policyEffectiveEnd();
+
+            $this->payrollMonthLockService->assertLeaveWritable($effectiveStart, $effectiveEnd);
 
             $requester = $lockedLeaveRequest->user;
 
             if ($requester !== null) {
                 $this->lockActiveLeaveRequestsFor($requester);
+                $this->leaveCoverageGuard->lockCoverageGroupRows($requester);
+
+                $this->leaveManualExceptionGuard->assertManualExceptionAllowedOnApprove(
+                    $lockedLeaveRequest,
+                    $authorizedOverride,
+                );
+
+                if (! $authorizedOverride) {
+                    $this->leaveCoverageGuard->assertCoverageAllows(
+                        $requester,
+                        $effectiveStart,
+                        $effectiveEnd,
+                        excludeLeaveRequestIds: [$lockedLeaveRequest->id],
+                    );
+                }
+
                 $this->assertNoOverlappingLeave(
                     user: $requester,
-                    startDate: $lockedLeaveRequest->start_date->copy()->startOfDay(),
-                    endDate: $lockedLeaveRequest->end_date->copy()->startOfDay(),
+                    startDate: $effectiveStart,
+                    endDate: $effectiveEnd,
                     excludeLeaveRequestId: $lockedLeaveRequest->id,
                     statuses: [LeaveRequestStatus::Approved],
                 );
             }
+
+            $approvalSource = $authorizedOverride
+                ? LeaveApprovalSource::AuthorizedOverride
+                : ($lockedLeaveRequest->is_manual_exception
+                    ? LeaveApprovalSource::ManualException
+                    : LeaveApprovalSource::Manual);
 
             $lockedLeaveRequest->fill([
                 'status' => LeaveRequestStatus::Approved,
                 'reviewed_by' => $reviewer->id,
                 'reviewed_at' => now(),
                 'review_notes' => $reviewNotes,
+                'approval_source' => $approvalSource,
+                'authorized_override' => $authorizedOverride,
+                'authorized_override_by' => $authorizedOverride ? $reviewer->id : null,
+                'authorized_override_reason' => $authorizedOverride ? $overrideReason : null,
             ])->save();
 
             $lockedLeaveRequest = $lockedLeaveRequest->fresh(['user', 'reviewer']);
@@ -248,8 +369,8 @@ class LeaveRequestService
         if ($requester !== null) {
             $this->attendanceRegisterService->refreshDateRange(
                 user: $requester,
-                startDate: $leaveRequest->start_date->copy()->startOfDay(),
-                endDate: $leaveRequest->end_date->copy()->startOfDay(),
+                startDate: $leaveRequest->policyEffectiveStart(),
+                endDate: $leaveRequest->policyEffectiveEnd(),
             );
         }
 
@@ -525,8 +646,19 @@ class LeaveRequestService
                 $excludeLeaveRequestId !== null,
                 fn ($query) => $query->where('id', '!=', $excludeLeaveRequestId),
             )
-            ->whereDate('start_date', '<=', $endDate->toDateString())
-            ->whereDate('end_date', '>=', $startDate->toDateString())
+            ->where(function ($query) use ($startDate, $endDate): void {
+                $startKey = $startDate->toDateString();
+                $endKey = $endDate->toDateString();
+                $query->where(function ($q) use ($startKey, $endKey): void {
+                    $q->whereNotNull('policy_effective_start_date')
+                        ->whereDate('policy_effective_start_date', '<=', $endKey)
+                        ->whereDate('policy_effective_end_date', '>=', $startKey);
+                })->orWhere(function ($q) use ($startKey, $endKey): void {
+                    $q->whereNull('policy_effective_start_date')
+                        ->whereDate('start_date', '<=', $endKey)
+                        ->whereDate('end_date', '>=', $startKey);
+                });
+            })
             ->exists();
 
         if ($overlapExists) {

@@ -1269,4 +1269,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 
 | RadiumDesk-P-18-62 | 2026-11-18 | **P-18-62** Release-gate synthetic probe loopback Host header | **RISK Normal.** Branch `feature/p18-62-probe-loopback` from `main`. `CentralWalletReleaseGateProbeHttpTransport` + `CENTRAL_WALLET_RELEASE_GATE_PROBE_HOST_HEADER`; contract/synthetic probes only; public HTTPS unchanged. Focused PHPUnit **PASS** (`CentralWalletReleaseGateProbeHttpTransportTest` **5/5**). **NO** prod `.env`, deploy, P-18-24, or financial mutation. |
 
+| RadiumDesk-P-19-15 | 2026-11-19 | **P-19-15** Leave policy controls implement + release prep | Worktree **`feature/p19-15-leave-policy`** from **`main`** **`b6b39f081`**. **HIGH** risk. Sunday sandwich, coverage, manual exception cap, HR half-day only; auto-approval **DISABLED** (no balance ledger). Focused PHPUnit **PASS**; full suite **NOT RUN**. **NO** prod deploy. **`.artifacts/P-19-15-leave-policy-implementation-report.md`**. **~08:52–09:15 IST**. |
+
 Do not renumber or overwrite earlier rows. Append only.

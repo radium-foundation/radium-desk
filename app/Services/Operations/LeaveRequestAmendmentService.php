@@ -20,6 +20,7 @@ use App\Notifications\LeaveAmendmentDecisionNotification;
 use App\Notifications\LeaveAmendmentSubmittedNotification;
 use App\Services\AuditLogService;
 use App\Services\Notifications\NotificationAuthorityService;
+use App\Services\Operations\LeavePolicy\LeavePolicyOrchestrator;
 use App\Services\Workforce\PayrollMonthLockService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -35,6 +36,7 @@ class LeaveRequestAmendmentService
         private readonly AttendanceRegisterService $attendanceRegisterService,
         private readonly WorkforceEventPublisher $workforceEventPublisher,
         private readonly PayrollMonthLockService $payrollMonthLockService,
+        private readonly LeavePolicyOrchestrator $leavePolicyOrchestrator,
     ) {}
 
     public function canManage(User $user): bool
@@ -232,7 +234,9 @@ class LeaveRequestAmendmentService
             $proposedEnd = Carbon::parse($data['proposed_end_date'])->startOfDay();
             $proposedDuration = LeaveDuration::tryFrom((string) ($data['proposed_duration'] ?? LeaveDuration::FullDay->value))
                 ?? LeaveDuration::FullDay;
+            $halfDayException = filter_var($data['half_day_exception'] ?? false, FILTER_VALIDATE_BOOL);
 
+            $this->leavePolicyOrchestrator->assertHrHalfDayAllowed($manager, $proposedDuration, $halfDayException);
             $this->leaveRequestService->assertValidDateRange($proposedStart, $proposedEnd);
             $this->leaveRequestService->assertDurationMatchesRange($proposedDuration, $proposedStart, $proposedEnd);
 
@@ -382,10 +386,33 @@ class LeaveRequestAmendmentService
         $proposedEnd = $amendment->proposed_end_date->copy()->startOfDay();
         $proposedDuration = $amendment->proposed_duration ?? LeaveDuration::FullDay;
 
+        $requester = $leaveRequest->user;
+        if ($requester === null) {
+            throw ValidationException::withMessages([
+                'leave_request' => 'Leave request has no associated employee.',
+            ]);
+        }
+        $submittedAt = $leaveRequest->created_at ?? now();
+        $policy = $this->leavePolicyOrchestrator->evaluateSubmission(
+            requester: $requester,
+            requestedStart: $proposedStart,
+            requestedEnd: $proposedEnd,
+            duration: $proposedDuration,
+            manualException: (bool) $leaveRequest->is_manual_exception,
+            submittedAt: $submittedAt,
+            excludeLeaveRequestId: $leaveRequest->id,
+        );
+
         $leaveRequest->fill([
             'start_date' => $proposedStart->toDateString(),
             'end_date' => $proposedEnd->toDateString(),
             'duration' => $proposedDuration,
+            'is_half_day_exception' => $proposedDuration === LeaveDuration::HalfDay,
+            'policy_effective_start_date' => $policy->effectiveStart->toDateString(),
+            'policy_effective_end_date' => $policy->effectiveEnd->toDateString(),
+            'notice_calendar_days' => $policy->noticeCalendarDays,
+            'requires_manual_review' => $policy->requiresManualReview,
+            'policy_metadata' => $policy->metadata,
         ])->save();
 
         $leaveRequest = $leaveRequest->fresh(['user']);

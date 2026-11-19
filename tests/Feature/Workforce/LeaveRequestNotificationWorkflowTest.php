@@ -101,7 +101,6 @@ class LeaveRequestNotificationWorkflowTest extends TestCase
             'start_date' => '2026-08-12',
             'end_date' => '2026-08-12',
             'reason' => 'Personal',
-            'duration' => 'half_day',
         ]);
 
         Notification::fake();
@@ -116,7 +115,7 @@ class LeaveRequestNotificationWorkflowTest extends TestCase
 
         $this->assertSame('Leave Request Rejected', $payload['title']);
         $this->assertStringContainsString('rejected', $payload['message']);
-        $this->assertStringContainsString('Half Day', $payload['message']);
+        $this->assertStringContainsString('Full Day', $payload['message']);
         $this->assertStringContainsString('Coverage needed on that day', $payload['message']);
     }
 
@@ -192,8 +191,7 @@ class LeaveRequestNotificationWorkflowTest extends TestCase
         $this->leaveService->submit($agent, [
             'start_date' => '2026-08-20',
             'end_date' => '2026-08-20',
-            'reason' => 'Half day off',
-            'duration' => 'half_day',
+            'reason' => 'Full day off',
         ]);
 
         $shipra = User::query()->where('email', 'shipra@radiumbox.com')->firstOrFail();
@@ -202,7 +200,7 @@ class LeaveRequestNotificationWorkflowTest extends TestCase
 
         $this->assertSame('Leave Request Submitted', $payload['title']);
         $this->assertStringContainsString('New leave request from Demo', $payload['message']);
-        $this->assertStringContainsString('Half Day', $payload['message']);
+        $this->assertStringContainsString('Full Day', $payload['message']);
         $this->assertStringContainsString('2026-08-20', $payload['message']);
     }
 

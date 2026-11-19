@@ -122,8 +122,8 @@ class PayrollPayableDayPolicy
 
         $map = [];
         foreach ($leaves as $leave) {
-            $cursor = $leave->start_date->copy()->startOfDay();
-            $leaveEnd = $leave->end_date->copy()->startOfDay();
+            $cursor = ($leave->policy_effective_start_date ?? $leave->start_date)->copy()->startOfDay();
+            $leaveEnd = ($leave->policy_effective_end_date ?? $leave->end_date)->copy()->startOfDay();
             $payClass = $leave->pay_class ?? LeavePayClass::Paid;
 
             while ($cursor->lte($leaveEnd)) {

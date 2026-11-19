@@ -42,6 +42,25 @@
                         <dt class="col-sm-3">Duration</dt>
                         <dd class="col-sm-9">{{ $leaveRequest->duration?->label() ?? 'Full Day' }}</dd>
 
+                        @if($leaveRequest->policy_effective_start_date && ! $leaveRequest->policy_effective_start_date->isSameDay($leaveRequest->start_date))
+                            <dt class="col-sm-3">Policy dates</dt>
+                            <dd class="col-sm-9">
+                                {{ display_app_date($leaveRequest->policy_effective_start_date) }}
+                                – {{ display_app_date($leaveRequest->policy_effective_end_date) }}
+                                <span class="text-muted small d-block">Includes Sunday sandwich or policy adjustments.</span>
+                            </dd>
+                        @endif
+
+                        @if($leaveRequest->requires_manual_review)
+                            <dt class="col-sm-3">Review</dt>
+                            <dd class="col-sm-9"><span class="badge text-bg-warning">Manual review required</span></dd>
+                        @endif
+
+                        @if($leaveRequest->is_manual_exception)
+                            <dt class="col-sm-3">Exception</dt>
+                            <dd class="col-sm-9">Manual policy exception</dd>
+                        @endif
+
                         <dt class="col-sm-3">Reason</dt>
                         <dd class="col-sm-9">{{ $leaveRequest->reason }}</dd>
 
@@ -188,6 +207,15 @@
                                     <label for="approve_review_notes" class="form-label">Notes (required)</label>
                                     <textarea id="approve_review_notes" name="review_notes" rows="3" class="form-control" required>{{ old('review_notes') }}</textarea>
                                 </div>
+                                @can('leave-requests.manage')
+                                    <div class="mb-3">
+                                        <div class="form-check">
+                                            <input type="checkbox" class="form-check-input" name="authorized_override" value="1" id="authorized_override" @checked(old('authorized_override'))>
+                                            <label class="form-check-label" for="authorized_override">Authorized override (coverage cap / monthly exception limit)</label>
+                                        </div>
+                                        <textarea name="authorized_override_reason" rows="2" class="form-control mt-2" placeholder="Override reason (required when checked)">{{ old('authorized_override_reason') }}</textarea>
+                                    </div>
+                                @endcan
                                 <button type="submit" class="btn btn-success w-100">Approve Leave</button>
                             </form>
 
@@ -224,8 +252,12 @@
                                 <label class="form-label">Duration</label>
                                 <select name="proposed_duration" class="form-select">
                                     <option value="full_day" @selected($leaveRequest->duration?->value === 'full_day')>Full Day</option>
-                                    <option value="half_day" @selected($leaveRequest->duration?->value === 'half_day')>Half Day</option>
+                                    <option value="half_day" @selected($leaveRequest->duration?->value === 'half_day')>Half Day (exception)</option>
                                 </select>
+                            </div>
+                            <div class="mb-2 form-check">
+                                <input type="checkbox" name="half_day_exception" value="1" id="half_day_exception" class="form-check-input">
+                                <label class="form-check-label" for="half_day_exception">Confirm Management half-day exception</label>
                             </div>
                             <div class="mb-2">
                                 <label class="form-label">Reason</label>
