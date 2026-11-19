@@ -13,21 +13,37 @@ use Tests\TestCase;
  */
 class Inv0767941LegacyPosShippingCompatibilityTest extends TestCase
 {
-    public function test_production_inv0767941_shape_passes_guard_and_mapper(): void
+    public function test_legacy_header_shipping_passes_gst_guard_without_product_hsn_reuse(): void
     {
         config(['statutory_invoices.pos_retail_shipping.hsn_sac' => null]);
 
         $invoice = $this->inv0767941Shape();
 
         $this->assertSame([], EInvoiceStoredGstGuard::missingReasons($invoice));
+    }
 
-        $payload = app(EInvoiceIrnPayloadMapper::class)->map($invoice);
+    public function test_mapper_fails_closed_when_owner_shipping_hsn_not_configured(): void
+    {
+        config(['statutory_invoices.pos_retail_shipping.hsn_sac' => null]);
 
+        $payload = app(EInvoiceIrnPayloadMapper::class)->map($this->inv0767941Shape());
+
+        $this->assertContains('missing_pos_shipping_hsn_sac', $payload->gaps);
         $this->assertNotContains('line_header_gst_mismatch', $payload->gaps);
         $this->assertNotContains('invoice_total_mismatch', $payload->gaps);
+        $this->assertCount(1, $payload->items);
+    }
+
+    public function test_mapper_appends_shipping_line_when_owner_hsn_configured(): void
+    {
+        config(['statutory_invoices.pos_retail_shipping.hsn_sac' => '996511']);
+
+        $payload = app(EInvoiceIrnPayloadMapper::class)->map($this->inv0767941Shape());
+
         $this->assertNotContains('missing_pos_shipping_hsn_sac', $payload->gaps);
+        $this->assertNotContains('line_header_gst_mismatch', $payload->gaps);
         $this->assertCount(2, $payload->items);
-        $this->assertSame('84716050', $payload->items[1]['hsn_sac']);
+        $this->assertSame('996511', $payload->items[1]['hsn_sac']);
         $this->assertSame('2237.28', $payload->items[1]['taxable_value']);
         $this->assertSame('402.71', $payload->items[1]['igst']);
         $this->assertSame('200237.28', $payload->values['taxable_value']);

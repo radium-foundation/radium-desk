@@ -521,12 +521,12 @@ class EInvoiceIrnPayloadMapper
         );
         $shipTax = round($shipCgst + $shipSgst + $shipIgst, 2);
 
-        $hsn = $this->nullable(config('statutory_invoices.pos_retail_shipping.hsn_sac'))
-            ?? PosRetailShippingStatutoryLine::incidentalHsnSacFromInvoiceItems($invoice);
-        $gaps = [];
+        $hsn = $this->nullable(config('statutory_invoices.pos_retail_shipping.hsn_sac'));
         if ($hsn === null) {
-            $gaps[] = 'missing_pos_shipping_hsn_sac';
+            return [$items, ['missing_pos_shipping_hsn_sac'], $assessable];
         }
+
+        $gaps = [];
 
         $description = $this->nullable(config('statutory_invoices.pos_retail_shipping.description'))
             ?? 'Shipping & Delivery Charges';

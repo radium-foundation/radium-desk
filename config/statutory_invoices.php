@@ -132,8 +132,8 @@ return [
 
     /*
     | POS retail customer shipping (header shipping_amount on statutory invoices).
-    | When STATUTORY_POS_RETAIL_SHIPPING_HSN_SAC is empty, shipping incidental to the
-    | goods supply uses the HSN/SAC of the highest-rate product line (goods tax treatment).
+    | STATUTORY_POS_RETAIL_SHIPPING_HSN_SAC must be set to an Owner/CA-approved code before
+    | legacy header-only shipping lines are IRP-submittable. Desk does not default to product HSN.
     */
     'pos_retail_shipping' => [
         'hsn_sac' => $statutoryEnv('STATUTORY_POS_RETAIL_SHIPPING_HSN_SAC'),

@@ -34,26 +34,10 @@ class EInvoiceIrnPayloadMapperPosShippingTest extends TestCase
             'statutory_invoices.pos_retail_shipping.hsn_sac' => null,
         ]);
 
-        $invoice = $this->invoiceShape();
-        $invoice->items->first()->hsn_sac = '';
-
-        $payload = app(EInvoiceIrnPayloadMapper::class)->map($invoice);
-
-        $this->assertContains('missing_pos_shipping_hsn_sac', $payload->gaps);
-    }
-
-    public function test_pos_shipping_uses_incidental_product_hsn_when_env_override_absent(): void
-    {
-        config([
-            'statutory_invoices.pos_retail_shipping.hsn_sac' => null,
-            'statutory_invoices.pos_retail_shipping.description' => 'Shipping & Delivery Charges',
-        ]);
-
         $payload = app(EInvoiceIrnPayloadMapper::class)->map($this->invoiceShape());
 
-        $this->assertNotContains('missing_pos_shipping_hsn_sac', $payload->gaps);
-        $this->assertSame('84716050', $payload->items[1]['hsn_sac']);
-        $this->assertSame('Shipping & Delivery Charges', $payload->items[1]['description']);
+        $this->assertContains('missing_pos_shipping_hsn_sac', $payload->gaps);
+        $this->assertCount(1, $payload->items);
     }
 
     public function test_repeated_map_does_not_accumulate_shipping_lines(): void
