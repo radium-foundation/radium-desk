@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.1.100 — 2026-11-19 — Statutory mint diagnostic allowlist sanitization (P-19-37 / P-19-38)
+
+- **Purpose:** Allowlist-only sanitization of statutory service-mint outbox failure messages in Customer 360; unknown errors map to a generic authorized-support message.
+- **Application delta:** `ServiceStatutoryInvoiceMintOutboxErrorSanitizer` + focused PHPUnit; **no** retry/mint/IRN/outbox mutation controls.
+- **Migrations:** **None**.
+- **Evidence:** PR **#358** @ **`2a3d06ed4`** (code **`813e5a1a5`**); focused PHPUnit **17/17 PASS**; CI **rip** + **release-rip** **PASS**.
+- **Rollback target:** **v4.1.99** / **`5d6f6f263`**.
+
 ## 4.1.99 — 2026-11-19 — Statutory service-mint outbox diagnostics (P-19-34)
 
 - **Purpose:** Read-only Customer 360 visibility for statutory service-invoice mint outbox state (`statutory-service-mint:order:{pk}`): failed / queued / in-progress / completed-without-invoice / missing record, with sanitized failure reasons.
