@@ -10,7 +10,9 @@ return new class extends Migration
     {
         Schema::create('commerce_order_buyer_gst_verifications', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('commerce_order_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('commerce_order_id');
+            $table->foreign('commerce_order_id', 'co_buyer_gst_verif_order_fk')
+                ->references('id')->on('commerce_orders')->cascadeOnDelete();
             $table->string('submitted_gstin', 15);
             $table->string('verification_status', 32);
             $table->string('invoice_classification', 8)->nullable();
@@ -27,8 +29,8 @@ return new class extends Migration
             $table->string('provider_payload_hash', 64)->nullable();
             $table->timestamps();
 
-            $table->unique('commerce_order_id');
-            $table->index(['submitted_gstin', 'verification_status']);
+            $table->unique('commerce_order_id', 'co_buyer_gst_verif_order_uq');
+            $table->index(['submitted_gstin', 'verification_status'], 'co_buyer_gst_verif_gstin_status_idx');
         });
     }
 

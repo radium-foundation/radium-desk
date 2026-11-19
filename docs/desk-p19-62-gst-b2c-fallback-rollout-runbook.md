@@ -14,8 +14,8 @@
 
 | Order | Migration | Notes |
 | --- | --- | --- |
-| 1 | `2026_11_19_120000_create_commerce_order_buyer_gst_verifications_table` | **Required first** |
-| 2 | `2026_11_19_130000_create_commerce_order_buyer_gst_b2c_conversions_table` | FK to verifications |
+| 1 | `2026_11_19_120000_create_commerce_order_buyer_gst_verifications_table` | **Required first**; MariaDB uses short index/FK names (`co_buyer_gst_verif_*`) |
+| 2 | `2026_11_19_130000_create_commerce_order_buyer_gst_b2c_conversions_table` | FK to verifications; short names (`co_b2c_conv_*`) |
 
 **Rollback:** Dropping (2) removes conversion audit only. Dropping (1) destroys verification evidence and breaks (2). Plan forward-only on production unless explicitly authorized.
 

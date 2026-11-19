@@ -132,7 +132,10 @@ class BuyerGstB2cConversionMysqlConcurrencyTest extends TestCase
         touch($go);
 
         foreach ($processes as $item) {
-            $item['process']->mustRun();
+            $item['process']->wait();
+            if (! $item['process']->isSuccessful()) {
+                $this->fail('Worker failed: '.$item['process']->getErrorOutput().$item['process']->getOutput());
+            }
         }
 
         $results = [];

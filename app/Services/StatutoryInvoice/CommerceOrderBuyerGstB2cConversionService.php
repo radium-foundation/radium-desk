@@ -10,6 +10,7 @@ use App\Models\StatutoryInvoice;
 use App\Models\User;
 use App\Support\StatutoryInvoice\BuyerGstB2cConversionPolicy;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -56,6 +57,8 @@ final class CommerceOrderBuyerGstB2cConversionService
         );
 
         return DB::transaction(function () use ($order, $actor, $decisionReason, $record, $remark): CommerceOrderBuyerGstB2cConversion {
+            CommerceOrder::query()->whereKey($order->id)->lockForUpdate()->first();
+
             $existing = CommerceOrderBuyerGstB2cConversion::query()
                 ->where('commerce_order_id', $order->id)
                 ->lockForUpdate()
@@ -92,8 +95,20 @@ final class CommerceOrderBuyerGstB2cConversionService
                 return $existing->fresh() ?? $existing;
             }
 
-            return CommerceOrderBuyerGstB2cConversion::query()->create($payload);
-        });
+            try {
+                return CommerceOrderBuyerGstB2cConversion::query()->create($payload);
+            } catch (UniqueConstraintViolationException $exception) {
+                $wonRace = CommerceOrderBuyerGstB2cConversion::query()
+                    ->where('commerce_order_id', $order->id)
+                    ->where('status', BuyerGstB2cConversionStatus::Approved)
+                    ->first();
+                if ($wonRace !== null) {
+                    return $wonRace;
+                }
+
+                throw $exception;
+            }
+        }, 5);
     }
 
     public function reject(CommerceOrder $order, User $actor, string $decisionReason): CommerceOrderBuyerGstB2cConversion
