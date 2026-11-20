@@ -1054,6 +1054,16 @@ class StatutoryInvoiceService
      */
     private function serviceGstIssuanceDecision(CommerceOrder $order, array $resolvedHsns): ServiceStatutoryGstIssuanceDecision
     {
+        $authorizedB2c = $this->buyerGstB2cConversions->approvedConversion($order);
+        if ($authorizedB2c !== null) {
+            return new ServiceStatutoryGstIssuanceDecision(
+                issueAsB2b: false,
+                buyerGstinForMint: null,
+                b2cDowngradeCode: 'gstin_verification_b2c_conversion',
+                statutoryIssuanceNote: $authorizedB2c->invoice_remark,
+            );
+        }
+
         if ($this->supplyKinds->requireFromLines($resolvedHsns) !== StatutorySupplyKind::Service) {
             return new ServiceStatutoryGstIssuanceDecision(
                 issueAsB2b: BuyerGstin::isValid(BuyerGstin::normalize($order->buyer_gstin)),
