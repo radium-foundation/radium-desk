@@ -56,6 +56,22 @@ final class HardwareShipmentMerchantReference
         return $refs;
     }
 
+    /**
+     * @return array{display: string, canonical: ?string, legacy_hw: bool}
+     */
+    public static function displayReferences(?Shipment $shipment, HardwareFulfilment $fulfilment): array
+    {
+        $stored = trim((string) ($shipment?->shipment_no ?? $fulfilment->shipment_no ?? ''));
+        $canonical = trim((string) $fulfilment->source_id);
+        $display = $stored !== '' ? $stored : ($canonical !== '' ? $canonical : '—');
+
+        return [
+            'display' => $display,
+            'canonical' => $canonical !== '' ? $canonical : null,
+            'legacy_hw' => str_starts_with($stored, self::LEGACY_PREFIX),
+        ];
+    }
+
     public static function acceptsMerchantOrderId(
         ?string $foundMerchantId,
         Shipment $shipment,

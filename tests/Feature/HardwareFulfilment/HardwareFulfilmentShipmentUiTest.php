@@ -267,6 +267,35 @@ class HardwareFulfilmentShipmentUiTest extends TestCase
         $this->assertNoLiveSideEffects();
     }
 
+    public function test_operational_panel_shows_pickup_error_without_implying_desk_pickup(): void
+    {
+        $this->enableFakeShipping();
+        $fulfilment = $this->selectTestCourier($this->invoicedFulfilment('RDE900911', 'DELHI-RETAIL'), $this->operator);
+
+        $this->actingAs($this->operator)
+            ->post(route('inventory.hardware-fulfilments.shipment.store', $fulfilment))
+            ->assertRedirect(route('inventory.hardware-fulfilments.show', $fulfilment));
+
+        $shipment = Shipment::query()->firstOrFail();
+        $shipment->forceFill([
+            'awb' => 'SF4531928884SPF',
+            'provider_track_status' => 'Pickup Error',
+            'pickup_requested_at' => null,
+            'provider_tracked_at' => now()->subDays(3),
+        ])->save();
+
+        $this->actingAs($this->operator)
+            ->get(route('inventory.hardware-fulfilments.show', $fulfilment->fresh()))
+            ->assertOk()
+            ->assertSee('Shipment operations', false)
+            ->assertSee('Pickup error (Shiprocket / courier)', false)
+            ->assertSee('Desk pickup was never requested', false)
+            ->assertSee('Blocked', false)
+            ->assertSee('Not requested', false);
+
+        Http::assertNothingSent();
+    }
+
     public function test_duplicate_ui_submit_does_not_create_a_second_shipment(): void
     {
         $this->enableFakeShipping();

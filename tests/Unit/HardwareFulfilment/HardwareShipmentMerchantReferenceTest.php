@@ -50,4 +50,17 @@ class HardwareShipmentMerchantReferenceTest extends TestCase
         $this->assertTrue(HardwareShipmentMerchantReference::acceptsMerchantOrderId('HW-RBP2281', $shipment, $fulfilment));
         $this->assertFalse(HardwareShipmentMerchantReference::acceptsMerchantOrderId('RBP9999', $shipment, $fulfilment));
     }
+
+    #[Test]
+    public function test_display_references_marks_legacy_hw_prefix(): void
+    {
+        $fulfilment = new HardwareFulfilment(['source_id' => 'RBP2281']);
+        $shipment = new Shipment(['shipment_no' => 'HW-RBP2281']);
+
+        $refs = HardwareShipmentMerchantReference::displayReferences($shipment, $fulfilment);
+
+        $this->assertSame('HW-RBP2281', $refs['display']);
+        $this->assertTrue($refs['legacy_hw']);
+        $this->assertSame('RBP2281', $refs['canonical']);
+    }
 }
