@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.1.103 — 2026-11-20 — Hardware buyer GST mint gate hardening (P-20-20)
+
+- **Statutory:** `CommerceBuyerGstMintGate::assertNotBlocking` on hardware `issueFromCommerceOrder` and `HardwareFulfilmentInvoiceService::issueInvoice` (manual Finance Hub and post-serial automatic paths).
+- **Migrations:** None.
+- **Out of scope:** GST flag changes, service auto-issuance policy, receipt allowlist expansion.
+- Rollback target: v4.1.102 / `339e3dc99`.
+- Prompt **RadiumDesk-P-20-20**; deploy **P-20-21**.
+
 ## Unreleased — P-19-65 automatic GSTIN failure-to-B2C
 
 - When `STATUTORY_BUYER_GSTIN_B2C_FALLBACK_ENABLED` is on, orders with B2B-ineligible buyer GSTIN outcomes convert to B2C automatically (`ensureAutomaticConversion`); manual approval is no longer a mint blocker.
