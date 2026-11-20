@@ -54,6 +54,11 @@ final class NullShiprocketGateway implements ShiprocketGateway
         throw new ShiprocketDisabledException(self::MESSAGE);
     }
 
+    public function reassignCourierAwb(string $externalShipmentId, ?string $courierId = null): ShiprocketAwbResult
+    {
+        throw new ShiprocketDisabledException(self::MESSAGE);
+    }
+
     public function requestPickup(string $externalShipmentId): ShiprocketPickupResult
     {
         throw new ShiprocketDisabledException(self::MESSAGE);

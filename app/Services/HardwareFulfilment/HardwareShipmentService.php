@@ -11,6 +11,7 @@ use App\Models\ShipmentEvent;
 use App\Models\User;
 use App\Services\HardwareFulfilment\Data\HardwareAwbReconcileOutcome;
 use App\Services\HardwareFulfilment\Data\HardwareCourierReassignmentReconcileOutcome;
+use App\Services\HardwareFulfilment\Data\HardwareProviderCourierReassignOutcome;
 use App\Services\Shipping\Data\ShiprocketAwbResult;
 use App\Services\Shipping\Data\ShiprocketCreateOrderResult;
 use App\Services\Shipping\Data\ShiprocketSearchResult;
@@ -407,6 +408,193 @@ class HardwareShipmentService
     }
 
     /**
+     * Provider POST /courier/assign/awb with status reassign for an existing bound shipment.
+     */
+    public function reassignCourierViaProviderApi(
+        HardwareFulfilment $fulfilment,
+        ?string $courierId = null,
+        bool $executeProviderPost = false,
+        bool $allowAfterAmbiguousAttempt = false,
+        ?User $actor = null,
+        array $walletSnapshot = [],
+    ): HardwareProviderCourierReassignOutcome {
+        $this->assertNotFrozen($fulfilment);
+        $this->assertProviderCallable();
+
+        $shipment = $this->existingShipment($fulfilment);
+        if ($shipment === null || ! $shipment->isBound() || ! filled($shipment->awb)) {
+            throw ValidationException::withMessages([
+                'shipping' => 'Courier reassignment requires a bound shipment with an existing AWB.',
+            ]);
+        }
+
+        if (filled($shipment->manifest_url) || filled($shipment->manifest_id)) {
+            throw ValidationException::withMessages([
+                'shipping' => 'Courier reassignment is not supported after a manifest has been generated.',
+            ]);
+        }
+
+        $previousAwb = trim((string) $shipment->awb);
+        $preflightTrack = $this->providerTrackForAwb($previousAwb, $shipment);
+        $targetCourier = trim((string) ($courierId ?? $shipment->courier_id ?? ''));
+
+        if ($targetCourier === '') {
+            throw ValidationException::withMessages([
+                'shipping' => 'Courier reassignment requires a target courier id (explicit or on the shipment).',
+            ]);
+        }
+
+        $blockedReason = $this->providerCourierReassignBlocked($shipment, $allowAfterAmbiguousAttempt);
+        if ($blockedReason !== null) {
+            if ($executeProviderPost) {
+                throw ValidationException::withMessages([
+                    'shipping' => $blockedReason,
+                ]);
+            }
+
+            return new HardwareProviderCourierReassignOutcome(
+                shipment: $shipment,
+                previousAwb: $previousAwb,
+                newAwb: $shipment->awb,
+                providerResult: new ShiprocketAwbResult(
+                    provider: $this->gateway->provider(),
+                    status: 'rejected',
+                    error: $blockedReason,
+                    retryable: false,
+                ),
+                preflightTrack: $preflightTrack,
+                postAssignTrack: null,
+                postedToProvider: false,
+                deskUpdated: false,
+                alreadyPosted: true,
+                walletSnapshot: $walletSnapshot,
+            );
+        }
+
+        if (! $executeProviderPost) {
+            return new HardwareProviderCourierReassignOutcome(
+                shipment: $shipment,
+                previousAwb: $previousAwb,
+                newAwb: null,
+                providerResult: new ShiprocketAwbResult(
+                    provider: $this->gateway->provider(),
+                    status: 'dry_run',
+                    retryable: false,
+                ),
+                preflightTrack: $preflightTrack,
+                postAssignTrack: null,
+                postedToProvider: false,
+                deskUpdated: false,
+                alreadyPosted: false,
+                walletSnapshot: $walletSnapshot,
+            );
+        }
+
+        DB::transaction(function () use ($fulfilment): void {
+            $locked = HardwareFulfilment::query()
+                ->whereKey($fulfilment->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            $this->assertNotFrozen($locked);
+
+            $shipment = $this->existingShipment($locked);
+            if ($shipment === null || ! $shipment->isBound()) {
+                throw ValidationException::withMessages([
+                    'shipping' => 'Courier reassignment requires a created provider shipment.',
+                ]);
+            }
+
+            $blockedReason = $this->providerCourierReassignBlocked($shipment, false);
+            if ($blockedReason !== null) {
+                throw ValidationException::withMessages([
+                    'shipping' => $blockedReason,
+                ]);
+            }
+        });
+
+        $result = ShiprocketApiAuditScope::run(
+            ShiprocketApiAuditContext::fromShipment($shipment),
+            fn () => $this->gateway->reassignCourierAwb(
+                (string) $shipment->external_shipment_id,
+                $targetCourier,
+            ),
+        );
+
+        DB::transaction(function () use ($fulfilment, $targetCourier, $previousAwb, $actor, $result): void {
+            $locked = HardwareFulfilment::query()
+                ->whereKey($fulfilment->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            $shipment = $this->existingShipment($locked);
+            if ($shipment === null || ! $shipment->isBound()) {
+                throw ValidationException::withMessages([
+                    'shipping' => 'Courier reassignment requires a created provider shipment.',
+                ]);
+            }
+
+            $this->recordProviderCourierReassignPostEvent($shipment, $result, $targetCourier, $previousAwb, $actor);
+        });
+
+        if ($result->retryable) {
+            throw ValidationException::withMessages([
+                'shipping' => ($result->error ?? 'Shiprocket courier reassignment failed retryably.')
+                    .' Stop. Run read-only GET tracking before any further POST.',
+            ]);
+        }
+
+        if ($result->status === 'ambiguous') {
+            throw ValidationException::withMessages([
+                'shipping' => ($result->error ?? 'Shiprocket courier reassignment returned an ambiguous response.')
+                    .' Stop. Run read-only GET tracking before any further POST.',
+            ]);
+        }
+
+        if ($result->status !== 'reassigned' || ! filled($result->awb)) {
+            throw ValidationException::withMessages([
+                'shipping' => $result->error ?? 'Shiprocket rejected courier reassignment.',
+            ]);
+        }
+
+        $postTrack = $this->providerTrackForAwb((string) $result->awb, $shipment);
+
+        $resolved = DB::transaction(function () use ($fulfilment, $shipment, $result, $previousAwb, $postTrack, $actor): array {
+            $locked = HardwareFulfilment::query()
+                ->whereKey($fulfilment->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            $shipment = $this->existingShipment($locked);
+            if ($shipment === null || ! $shipment->isBound()) {
+                throw ValidationException::withMessages([
+                    'shipping' => 'Courier reassignment requires a created provider shipment.',
+                ]);
+            }
+
+            $deskUpdated = $this->applyProviderCourierReassignResult($locked, $shipment, $result, $previousAwb, $postTrack, $actor);
+
+            return [
+                'shipment' => $shipment->fresh() ?? $shipment,
+                'deskUpdated' => $deskUpdated,
+            ];
+        });
+
+        return new HardwareProviderCourierReassignOutcome(
+            shipment: $resolved['shipment'],
+            previousAwb: $previousAwb,
+            newAwb: $result->awb,
+            providerResult: $result,
+            preflightTrack: $preflightTrack,
+            postAssignTrack: $postTrack,
+            postedToProvider: true,
+            deskUpdated: $resolved['deskUpdated'],
+            alreadyPosted: false,
+            walletSnapshot: $walletSnapshot,
+        );
+    }
+
+    /**
      * @param  array{courier_id: string, courier_name: string|null}  $courier
      * @return array{shipment?: Shipment, retryable?: string, rejected?: string, result?: ShiprocketAwbResult}
      */
@@ -629,6 +817,143 @@ class HardwareShipmentService
         }
 
         return $shipment->fresh() ?? $shipment;
+    }
+
+    private function providerCourierReassignBlocked(Shipment $shipment, bool $allowAfterAmbiguousAttempt): ?string
+    {
+        $posts = ShipmentEvent::query()
+            ->where('shipment_id', $shipment->id)
+            ->where('activity', 'provider_courier_reassign_post')
+            ->get();
+
+        if ($posts->isEmpty()) {
+            return null;
+        }
+
+        if ($posts->contains(fn (ShipmentEvent $event): bool => ($event->payload['outcome'] ?? null) === 'reassigned')) {
+            return 'A successful provider courier reassignment was already recorded for this shipment.';
+        }
+
+        if ($allowAfterAmbiguousAttempt) {
+            return null;
+        }
+
+        return 'A provider courier reassignment POST was already recorded for this shipment. Resolve provider state with GET before another POST.';
+    }
+
+    private function recordProviderCourierReassignPostEvent(
+        Shipment $shipment,
+        ShiprocketAwbResult $result,
+        string $targetCourierId,
+        string $previousAwb,
+        ?User $actor,
+    ): void {
+        $outcome = match (true) {
+            $result->status === 'reassigned' => 'reassigned',
+            $result->status === 'ambiguous' => 'ambiguous',
+            $result->retryable => 'failed',
+            default => 'rejected',
+        };
+
+        ShipmentEvent::query()->create([
+            'shipment_id' => $shipment->id,
+            'source' => 'provider',
+            'activity' => 'provider_courier_reassign_post',
+            'awb' => $result->awb ?? $previousAwb,
+            'external_order_id' => $shipment->external_order_id,
+            'external_shipment_id' => $shipment->external_shipment_id,
+            'payload' => [
+                'outcome' => $outcome,
+                'provider_status' => $result->status,
+                'target_courier_id' => $targetCourierId,
+                'previous_awb' => $previousAwb,
+                'response_awb' => $result->awb,
+                'response_courier_id' => $result->courierId,
+                'response_courier_name' => $result->courierName,
+                'provider_error' => $result->error,
+                'retryable' => $result->retryable,
+                'actor_user_id' => $actor?->id,
+            ],
+        ]);
+    }
+
+    private function applyProviderCourierReassignResult(
+        HardwareFulfilment $fulfilment,
+        Shipment $shipment,
+        ShiprocketAwbResult $result,
+        string $previousAwb,
+        ShiprocketTrackResult $postTrack,
+        ?User $actor,
+    ): bool {
+        $newAwb = trim((string) $result->awb);
+        if ($newAwb === '') {
+            return false;
+        }
+
+        if ($newAwb !== $previousAwb
+            && Shipment::query()
+                ->where('awb', $newAwb)
+                ->whereKeyNot($shipment->id)
+                ->exists()) {
+            throw ValidationException::withMessages([
+                'shipping' => 'Shiprocket returned an AWB that is already bound to another Desk shipment.',
+            ]);
+        }
+
+        $courierId = trim((string) ($result->courierId ?? ''));
+        $courierName = $result->courierName;
+        $normalized = ShiprocketTrackingNormalizer::normalize($postTrack);
+        $awbChanged = $newAwb !== $previousAwb;
+        $previousCourierId = trim((string) $shipment->courier_id);
+        $previousCourierName = $shipment->courier_name;
+        $previousLabelUrl = $shipment->label_url;
+
+        $shipment->forceFill([
+            'status' => ShipmentStatus::AwbAssigned,
+            'awb' => $newAwb,
+            'courier_id' => $courierId !== '' ? $courierId : $shipment->courier_id,
+            'courier_name' => $courierName ?? $shipment->courier_name,
+            'label_url' => $awbChanged ? null : $shipment->label_url,
+            'label_fetched_at' => $awbChanged ? null : $shipment->label_fetched_at,
+            'provider_track_status' => $normalized['provider_track_status'],
+            'provider_track_normalized' => $normalized['normalized']->value,
+            'provider_tracked_at' => now(),
+            'failure_class' => null,
+            'last_error' => null,
+            'last_reconciled_at' => now(),
+        ])->save();
+
+        $fulfilment->forceFill([
+            'awb' => $newAwb,
+            'provider_awb' => $newAwb,
+            'selected_courier_id' => $courierId !== '' ? $courierId : $fulfilment->selected_courier_id,
+            'selected_courier_name' => $courierName ?? $fulfilment->selected_courier_name,
+            'selected_courier_at' => now(),
+            'selected_courier_by_user_id' => $actor?->id,
+        ])->save();
+
+        ShipmentEvent::query()->create([
+            'shipment_id' => $shipment->id,
+            'source' => 'provider',
+            'activity' => $awbChanged ? 'awb_reassigned' : 'courier_reassigned',
+            'awb' => $newAwb,
+            'external_order_id' => $shipment->external_order_id,
+            'external_shipment_id' => $shipment->external_shipment_id,
+            'payload' => [
+                'reason' => 'provider_courier_reassign_api',
+                'previous_awb' => $previousAwb !== '' ? $previousAwb : null,
+                'previous_courier_id' => $previousCourierId !== '' ? $previousCourierId : null,
+                'previous_courier_name' => $previousCourierName,
+                'previous_label_url' => $previousLabelUrl,
+                'reconciled_awb' => $newAwb,
+                'reconciled_courier_id' => $courierId !== '' ? $courierId : null,
+                'reconciled_courier_name' => $courierName,
+                'provider_track_status' => $normalized['provider_track_status'],
+                'provider_track_normalized' => $normalized['normalized']->value,
+            ],
+        ]);
+
+        return true;
     }
 
     private function applyCourierReassignmentFromProviderSearch(

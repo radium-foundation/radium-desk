@@ -92,7 +92,7 @@ final class ShiprocketApiResponseSanitizer
     {
         return match ($operation) {
             'create_order' => self::summarizeCreateOrder($json),
-            'assign_awb' => self::summarizeAssignAwb($json),
+            'assign_awb', 'reassign_courier_awb' => self::summarizeAssignAwb($json),
             'search_orders' => self::summarizeSearch($json),
             'generate_label' => self::summarizeLabel($json),
             'request_pickup' => self::summarizePickup($json),

@@ -83,6 +83,41 @@ class ShiprocketApiAuditGatewayTest extends TestCase
         $this->assertSame('284931180089754', $event->payload['awb_code'] ?? null);
     }
 
+    public function test_gateway_reassign_courier_awb_writes_sanitized_shipment_event(): void
+    {
+        Http::fake([
+            'https://apiv2.shiprocket.in/v1/external/auth/login' => Http::response(['token' => 'tok-audit'], 200),
+            'https://apiv2.shiprocket.in/v1/external/courier/assign/awb' => Http::response([
+                'awb_assign_status' => 1,
+                'response' => [
+                    'data' => [
+                        'awb_code' => '284931180089755',
+                        'courier_company_id' => 252,
+                    ],
+                ],
+            ], 200),
+        ]);
+
+        $shipment = $this->createShipment('99002');
+        $auditor = new ShiprocketApiAuditor;
+        $gateway = new HttpShiprocketGateway($auditor);
+
+        $result = ShiprocketApiAuditScope::run(
+            ShiprocketApiAuditContext::fromShipment($shipment),
+            fn () => $gateway->reassignCourierAwb('99002', 252),
+        );
+
+        $this->assertSame('reassigned', $result->status);
+
+        $event = ShipmentEvent::query()
+            ->where('shipment_id', $shipment->id)
+            ->where('activity', 'shiprocket_api:reassign_courier_awb')
+            ->sole();
+
+        $this->assertSame('/courier/assign/awb', $event->payload['endpoint'] ?? null);
+        $this->assertSame('success', $event->payload['outcome'] ?? null);
+    }
+
     public function test_auth_login_is_not_audited(): void
     {
         Http::fake([
