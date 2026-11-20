@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.1.102 — 2026-11-20 — GST product B2C classification + receipt enqueue concurrency (P-20-04 / P-20-08)
+
+- **Statutory commerce:** Honor approved buyer-GST B2C conversion on product `issueFromCommerceOrder` (P-20-04).
+- **Receipt publication:** Harden `RadiumBoxStatutoryReceiptPublicationOutboxWriter::enqueue()` for InnoDB publication-row races (P-20-08).
+- **Migrations (additive):** `2026_11_19_120000` buyer GST verifications; `2026_11_19_130000` B2C conversions; `2026_11_19_140000` statutory invoice FK — applied in Owner-authorized production window only.
+- **Flags:** GST buyer verification and B2C fallback remain **default off**; no flag activation in this release.
+- Rollback target: v4.1.101 / `7edf904bb` (application); database rollback via backup **`20261120T025830Z`** if migrate applied.
+
 ## Unreleased — P-19-65 automatic GSTIN failure-to-B2C
 
 - When `STATUTORY_BUYER_GSTIN_B2C_FALLBACK_ENABLED` is on, orders with B2B-ineligible buyer GSTIN outcomes convert to B2C automatically (`ensureAutomaticConversion`); manual approval is no longer a mint blocker.
