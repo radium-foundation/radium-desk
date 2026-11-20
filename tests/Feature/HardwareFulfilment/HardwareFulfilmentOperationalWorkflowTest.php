@@ -166,7 +166,7 @@ class HardwareFulfilmentOperationalWorkflowTest extends TestCase
             ->get(route('inventory.hardware-fulfilments.show', $fulfilment->fresh()))
             ->assertOk()
             ->assertDontSee('Download Label')
-            ->assertDontSee('Download Manifest');
+            ->assertDontSee('id="hardware-manifest-download"', false);
 
         $this->actingAs($this->admin)
             ->get(route('inventory.hardware-fulfilments.label.download', $fulfilment->fresh()))
