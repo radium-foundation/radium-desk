@@ -58,6 +58,7 @@ use App\Services\HardwareFulfilment\HardwareSerialAllocationService;
 use App\Services\HardwareFulfilment\HardwareShipmentCourierOptionsService;
 use App\Services\HardwareFulfilment\HardwareShipmentDocumentsService;
 use App\Services\HardwareFulfilment\HardwareShipmentEligibility;
+use App\Services\HardwareFulfilment\HardwareShipmentOperationalVisibilityBuilder;
 use App\Services\HardwareFulfilment\HardwareShipmentOrchestrationService;
 use App\Services\HardwareFulfilment\HardwareShipmentService;
 use App\Services\Operations\OperationsRoleService;
@@ -94,6 +95,7 @@ class HardwareFulfilmentSerialController extends Controller
         private readonly HardwareFulfilmentIsolatedWorkflowService $isolated,
         private readonly HardwareShipmentOrchestrationService $orchestration,
         private readonly HardwareExternalShipmentService $externalShipments,
+        private readonly HardwareShipmentOperationalVisibilityBuilder $shipmentVisibility,
     ) {
         $this->middleware(function ($request, $next) {
             abort_unless(HardwareFulfilmentAccess::allows($request->user()), 403);
@@ -444,6 +446,11 @@ class HardwareFulfilmentSerialController extends Controller
                 ? route('finance.invoices.pdf', $shipment->invoiceId)
                 : null,
             'boundShipment' => $fulfilment->shipment,
+            'shipmentVisibility' => $this->shipmentVisibility->build(
+                $fulfilment->shipment,
+                $shipment,
+                $fulfilment,
+            ),
         ]);
     }
 

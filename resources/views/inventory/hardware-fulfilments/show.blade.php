@@ -312,6 +312,12 @@
             @endif
         @endif
 
+        @if(!$shipment->isExternalShipping && isset($shipmentVisibility))
+            @include('inventory.hardware-fulfilments.fragments.shipment-operational-visibility', [
+                'shipmentVisibility' => $shipmentVisibility,
+            ])
+        @endif
+
         <div class="hf-alloc-card mb-3" id="hardware-shipment">
             <p class="text-muted small text-uppercase fw-semibold mb-2">Shipping readiness</p>
             <dl class="hf-alloc-confirm mb-0">
