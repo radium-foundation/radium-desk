@@ -1,5 +1,15 @@
 # Changelog
 
+## 4.1.105 — 2026-11-20 — Shiprocket label recovery (P-20-30 / P-20-31 / P-20-32)
+
+- **Hardware fulfilment:** Best-effort read-only Shiprocket track sync immediately before **Generate Label** for AWB-bound rows that predate P-19-22 track persistence (RBP2281 / RBP2310 recovery).
+- **Shipping:** Surface Shiprocket label API rejection details (`response`, `label_created=0`, `not_created`) instead of the generic “did not return a label URL” when HTTP 200 returns no `label_url`.
+- **Migrations:** None.
+- **Production config:** No new env keys; existing shipping + Shiprocket credentials unchanged.
+- Rollback target: **v4.1.104** / `d41685d42`.
+- Prompts **RadiumDesk-P-20-30**, **P-20-31**, **P-20-32**; PRs **#388**, **#389**.
+- **Post-deploy (separate authorization):** Label retry on existing AWBs only — no new shipment/AWB.
+
 ## 4.1.104 — 2026-11-20 — Permanent confirmed GST ineligibility → B2C (P-20-27)
 
 - **Statutory:** When `STATUTORY_BUYER_GSTIN_VERIFICATION_ENABLED` is on, confirmed B2B-ineligible buyer GST outcomes (suspended/cancelled/invalid GSTIN, etc.) automatically convert to B2C **without** Stage B (`STATUTORY_BUYER_GSTIN_B2C_FALLBACK_ENABLED`).
