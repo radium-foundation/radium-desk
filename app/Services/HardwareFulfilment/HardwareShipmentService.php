@@ -13,6 +13,7 @@ use App\Services\HardwareFulfilment\Data\HardwareAwbReconcileOutcome;
 use App\Services\HardwareFulfilment\Data\HardwareCourierReassignmentReconcileOutcome;
 use App\Services\HardwareFulfilment\Data\HardwareProviderCourierReassignOutcome;
 use App\Services\Shipping\Data\ShiprocketAwbResult;
+use App\Services\Shipping\Data\ShiprocketCourierOptionsRequest;
 use App\Services\Shipping\Data\ShiprocketCreateOrderResult;
 use App\Services\Shipping\Data\ShiprocketSearchResult;
 use App\Services\Shipping\Data\ShiprocketTrackResult;
@@ -444,7 +445,7 @@ class HardwareShipmentService
             ]);
         }
 
-        $blockedReason = $this->providerCourierReassignBlocked($shipment, $allowAfterAmbiguousAttempt);
+        $blockedReason = $this->providerCourierReassignBlocked($shipment, $allowAfterAmbiguousAttempt, $targetCourier);
         if ($blockedReason !== null) {
             if ($executeProviderPost) {
                 throw ValidationException::withMessages([
@@ -490,7 +491,7 @@ class HardwareShipmentService
             );
         }
 
-        DB::transaction(function () use ($fulfilment): void {
+        DB::transaction(function () use ($fulfilment, $targetCourier): void {
             $locked = HardwareFulfilment::query()
                 ->whereKey($fulfilment->id)
                 ->lockForUpdate()
@@ -505,7 +506,7 @@ class HardwareShipmentService
                 ]);
             }
 
-            $blockedReason = $this->providerCourierReassignBlocked($shipment, false);
+            $blockedReason = $this->providerCourierReassignBlocked($shipment, false, $targetCourier);
             if ($blockedReason !== null) {
                 throw ValidationException::withMessages([
                     'shipping' => $blockedReason,
@@ -819,8 +820,11 @@ class HardwareShipmentService
         return $shipment->fresh() ?? $shipment;
     }
 
-    private function providerCourierReassignBlocked(Shipment $shipment, bool $allowAfterAmbiguousAttempt): ?string
-    {
+    private function providerCourierReassignBlocked(
+        Shipment $shipment,
+        bool $allowAfterAmbiguousAttempt,
+        string $targetCourierId,
+    ): ?string {
         $posts = ShipmentEvent::query()
             ->where('shipment_id', $shipment->id)
             ->where('activity', 'provider_courier_reassign_post')
@@ -834,11 +838,106 @@ class HardwareShipmentService
             return 'A successful provider courier reassignment was already recorded for this shipment.';
         }
 
-        if ($allowAfterAmbiguousAttempt) {
-            return null;
+        $targetCourierId = trim($targetCourierId);
+        if ($targetCourierId !== '' && $posts->contains(
+            fn (ShipmentEvent $event): bool => trim((string) ($event->payload['target_courier_id'] ?? '')) === $targetCourierId,
+        )) {
+            return 'A provider courier reassignment POST was already recorded for courier '.$targetCourierId.'.';
         }
 
-        return 'A provider courier reassignment POST was already recorded for this shipment. Resolve provider state with GET before another POST.';
+        $hasAmbiguousOrFailed = $posts->contains(
+            fn (ShipmentEvent $event): bool => in_array($event->payload['outcome'] ?? null, ['ambiguous', 'failed'], true),
+        );
+        if ($hasAmbiguousOrFailed && ! $allowAfterAmbiguousAttempt) {
+            return 'A prior ambiguous or retryable provider courier reassignment attempt exists. Resolve provider state with GET before another POST.';
+        }
+
+        return null;
+    }
+
+    /**
+     * Read-only Shiprocket courier serviceability for an existing bound shipment (reassign candidate discovery).
+     *
+     * @return array{status: string, pickup_postcode: string, delivery_postcode: string, weight_kg: float, provider_order_id: string|null, options: list<array<string, mixed>>, error: string|null}
+     */
+    public function discoverReassignCourierOptions(
+        HardwareFulfilment $fulfilment,
+        string $pickupPostcode,
+        string $deliveryPostcode,
+        ?float $weightKg = null,
+    ): array {
+        $this->assertProviderCallable();
+
+        $shipment = $this->existingShipment($fulfilment);
+        if ($shipment === null || ! $shipment->isBound()) {
+            throw ValidationException::withMessages([
+                'shipping' => 'Courier discovery requires a bound provider shipment.',
+            ]);
+        }
+
+        $pickup = trim($pickupPostcode);
+        $delivery = trim($deliveryPostcode);
+        if ($pickup === '' || $delivery === '') {
+            throw ValidationException::withMessages([
+                'shipping' => 'Courier discovery requires pickup and delivery postcodes.',
+            ]);
+        }
+
+        $weight = $weightKg ?? 0.5;
+        if ($weight <= 0) {
+            $weight = 0.5;
+        }
+
+        $providerOrderId = filled($shipment->external_order_id)
+            ? (string) $shipment->external_order_id
+            : null;
+
+        try {
+            $result = ShiprocketApiAuditScope::run(
+                ShiprocketApiAuditContext::fromShipment($shipment),
+                fn () => $this->gateway->listCourierOptions(new ShiprocketCourierOptionsRequest(
+                    pickupPostcode: $pickup,
+                    deliveryPostcode: $delivery,
+                    weight: $weight,
+                    cod: 0,
+                    providerOrderId: $providerOrderId,
+                )),
+            );
+        } catch (ShiprocketRetryableException $exception) {
+            return [
+                'status' => 'failed',
+                'pickup_postcode' => $pickup,
+                'delivery_postcode' => $delivery,
+                'weight_kg' => $weight,
+                'provider_order_id' => $providerOrderId,
+                'options' => [],
+                'error' => $exception->getMessage(),
+            ];
+        }
+
+        $options = [];
+        foreach ($result->options as $option) {
+            $options[] = [
+                'courier_id' => $option->courierId,
+                'courier_name' => $option->courierName,
+                'rate' => $option->rate,
+                'coverage_charge' => $option->coverageCharge,
+                'estimated_delivery' => $option->estimatedDelivery,
+                'cod_available' => $option->codAvailable,
+                'provider_recommended' => $option->providerRecommended,
+                'courier_type' => $option->courierType,
+            ];
+        }
+
+        return [
+            'status' => $result->status,
+            'pickup_postcode' => $pickup,
+            'delivery_postcode' => $delivery,
+            'weight_kg' => $weight,
+            'provider_order_id' => $providerOrderId,
+            'options' => $options,
+            'error' => $result->error,
+        ];
     }
 
     private function recordProviderCourierReassignPostEvent(
