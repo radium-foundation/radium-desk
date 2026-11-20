@@ -15,6 +15,8 @@ use App\Services\Shipping\Data\ShiprocketDocumentResult;
 use App\Services\Shipping\Data\ShiprocketTrackResult;
 use App\Services\Shipping\NullShiprocketGateway;
 use App\Services\Shipping\ShiprocketAlreadyQueuedPickup;
+use App\Services\Shipping\ShiprocketApiAuditContext;
+use App\Services\Shipping\ShiprocketApiAuditScope;
 use App\Services\Shipping\ShiprocketDisabledException;
 use App\Services\Shipping\ShiprocketManifestAlreadyGenerated;
 use App\Services\Shipping\ShiprocketNonRetryableException;
@@ -44,6 +46,7 @@ class HardwareShipmentDocumentsService
             $this->assertProviderCallable();
 
             $result = $this->callDocument(
+                $shipment,
                 fn (): ShiprocketDocumentResult => $this->gateway->generateLabel((string) $shipment->external_shipment_id),
                 'label',
             );
@@ -90,7 +93,10 @@ class HardwareShipmentDocumentsService
             }
 
             try {
-                $result = $this->gateway->requestPickup((string) $shipment->external_shipment_id);
+                $result = ShiprocketApiAuditScope::run(
+                    ShiprocketApiAuditContext::fromShipment($shipment),
+                    fn () => $this->gateway->requestPickup((string) $shipment->external_shipment_id),
+                );
             } catch (ShiprocketRetryableException $exception) {
                 throw ValidationException::withMessages([
                     'shipping' => $exception->getMessage().' Reconcile before requesting pickup again.',
@@ -200,6 +206,7 @@ class HardwareShipmentDocumentsService
             $this->assertProviderCallable();
 
             $result = $this->callDocument(
+                $shipment,
                 fn (): ShiprocketDocumentResult => $this->gateway->generateManifest((string) $shipment->external_shipment_id),
                 'manifest',
             );
@@ -311,10 +318,13 @@ class HardwareShipmentDocumentsService
     /**
      * @param  callable(): ShiprocketDocumentResult  $call
      */
-    private function callDocument(callable $call, string $action): ShiprocketDocumentResult
+    private function callDocument(Shipment $shipment, callable $call, string $action): ShiprocketDocumentResult
     {
         try {
-            $result = $call();
+            $result = ShiprocketApiAuditScope::run(
+                ShiprocketApiAuditContext::fromShipment($shipment),
+                $call,
+            );
         } catch (ShiprocketRetryableException $exception) {
             throw ValidationException::withMessages([
                 'shipping' => $exception->getMessage().' Reconcile before retrying '.$action.'.',
@@ -401,8 +411,13 @@ class HardwareShipmentDocumentsService
     private function providerTrackForShipment(Shipment $shipment): ShiprocketTrackResult
     {
         $awb = trim((string) $shipment->awb);
+        $context = ShiprocketApiAuditContext::fromShipment($shipment);
+
         if ($awb !== '') {
-            return $this->gateway->trackByAwb($awb);
+            return ShiprocketApiAuditScope::run(
+                $context,
+                fn () => $this->gateway->trackByAwb($awb),
+            );
         }
 
         $orderId = trim((string) $shipment->external_order_id);
@@ -412,7 +427,10 @@ class HardwareShipmentDocumentsService
             ]);
         }
 
-        return $this->gateway->trackByShipment((string) $shipment->external_shipment_id, $orderId);
+        return ShiprocketApiAuditScope::run(
+            $context,
+            fn () => $this->gateway->trackByShipment((string) $shipment->external_shipment_id, $orderId),
+        );
     }
 
     /**

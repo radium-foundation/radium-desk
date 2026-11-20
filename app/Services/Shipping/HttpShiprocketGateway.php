@@ -41,6 +41,13 @@ final class HttpShiprocketGateway implements ShiprocketGateway
 
     private ?string $token = null;
 
+    private ?string $auditOperation = null;
+
+    /** @var array{method: string, path: string, status: int, json: array<string, mixed>}|null */
+    private ?array $lastHttpExchange = null;
+
+    public function __construct(private ?ShiprocketApiAuditor $apiAuditor = null) {}
+
     public function provider(): string
     {
         return 'shiprocket';
@@ -70,192 +77,202 @@ final class HttpShiprocketGateway implements ShiprocketGateway
 
     public function createOrder(ShiprocketCreateOrderRequest $request): ShiprocketCreateOrderResult
     {
-        try {
-            $response = $this->send('post', '/orders/create/adhoc', $request->toAdhocPayload());
-        } catch (ShiprocketRetryableException $exception) {
+        return $this->withAuditOperation('create_order', function () use ($request): ShiprocketCreateOrderResult {
+            try {
+                $response = $this->send('post', '/orders/create/adhoc', $request->toAdhocPayload());
+            } catch (ShiprocketRetryableException $exception) {
+                return new ShiprocketCreateOrderResult(
+                    provider: $this->provider(),
+                    status: 'failed',
+                    correlationId: $request->correlationId,
+                    error: $exception->getMessage(),
+                    retryable: true,
+                );
+            }
+
+            $json = $response['json'];
+            $orderId = $this->scalar($json['order_id'] ?? $json['payload']['order_id'] ?? null);
+            $shipmentId = $this->scalar($json['shipment_id'] ?? $json['payload']['shipment_id'] ?? null);
+
+            if ($orderId === null || $shipmentId === null) {
+                return new ShiprocketCreateOrderResult(
+                    provider: $this->provider(),
+                    status: 'rejected',
+                    correlationId: $request->correlationId,
+                    error: $this->errorMessage($json, 'Shiprocket rejected shipment create.', $response['status']),
+                    retryable: false,
+                );
+            }
+
             return new ShiprocketCreateOrderResult(
                 provider: $this->provider(),
-                status: 'failed',
+                status: 'created',
+                externalOrderId: $orderId,
+                externalShipmentId: $shipmentId,
                 correlationId: $request->correlationId,
-                error: $exception->getMessage(),
-                retryable: true,
+                awb: $this->scalar($json['awb_code'] ?? $json['awb'] ?? null),
             );
-        }
-
-        $json = $response['json'];
-        $orderId = $this->scalar($json['order_id'] ?? $json['payload']['order_id'] ?? null);
-        $shipmentId = $this->scalar($json['shipment_id'] ?? $json['payload']['shipment_id'] ?? null);
-
-        if ($orderId === null || $shipmentId === null) {
-            return new ShiprocketCreateOrderResult(
-                provider: $this->provider(),
-                status: 'rejected',
-                correlationId: $request->correlationId,
-                error: $this->errorMessage($json, 'Shiprocket rejected shipment create.', $response['status']),
-                retryable: false,
-            );
-        }
-
-        return new ShiprocketCreateOrderResult(
-            provider: $this->provider(),
-            status: 'created',
-            externalOrderId: $orderId,
-            externalShipmentId: $shipmentId,
-            correlationId: $request->correlationId,
-            awb: $this->scalar($json['awb_code'] ?? $json['awb'] ?? null),
-        );
+        });
     }
 
     public function searchOrders(string $search): ShiprocketSearchResult
     {
-        try {
-            $response = $this->send('get', '/orders', ['search' => $search]);
-        } catch (ShiprocketRetryableException $exception) {
+        return $this->withAuditOperation('search_orders', function () use ($search): ShiprocketSearchResult {
+            try {
+                $response = $this->send('get', '/orders', ['search' => $search]);
+            } catch (ShiprocketRetryableException $exception) {
+                return new ShiprocketSearchResult(
+                    provider: $this->provider(),
+                    found: false,
+                    merchantOrderId: $search,
+                    error: $exception->getMessage(),
+                    retryable: true,
+                );
+            }
+
+            $row = $this->firstSearchRow($response['json'], $search);
+            if ($row === null) {
+                return new ShiprocketSearchResult(
+                    provider: $this->provider(),
+                    found: false,
+                    merchantOrderId: $search,
+                );
+            }
+
+            $shipment = $this->firstArray($row['shipments'] ?? $row['shipment'] ?? null);
+
             return new ShiprocketSearchResult(
                 provider: $this->provider(),
-                found: false,
-                merchantOrderId: $search,
-                error: $exception->getMessage(),
-                retryable: true,
+                found: true,
+                externalOrderId: $this->scalar($row['id'] ?? $row['order_id'] ?? null),
+                externalShipmentId: $this->scalar($shipment['id'] ?? $row['shipment_id'] ?? null),
+                merchantOrderId: $this->scalar($row['channel_order_id'] ?? $row['order_id'] ?? $search) ?? $search,
+                status: $this->scalar($row['status'] ?? $shipment['status'] ?? null),
+                awb: $this->scalar($shipment['awb'] ?? $row['awb'] ?? $row['awb_code'] ?? null),
+                courierId: $this->scalar($shipment['courier_id'] ?? $row['courier_id'] ?? null),
+                courierName: $this->scalar($shipment['courier'] ?? $row['courier_name'] ?? null),
             );
-        }
-
-        $row = $this->firstSearchRow($response['json'], $search);
-        if ($row === null) {
-            return new ShiprocketSearchResult(
-                provider: $this->provider(),
-                found: false,
-                merchantOrderId: $search,
-            );
-        }
-
-        $shipment = $this->firstArray($row['shipments'] ?? $row['shipment'] ?? null);
-
-        return new ShiprocketSearchResult(
-            provider: $this->provider(),
-            found: true,
-            externalOrderId: $this->scalar($row['id'] ?? $row['order_id'] ?? null),
-            externalShipmentId: $this->scalar($shipment['id'] ?? $row['shipment_id'] ?? null),
-            merchantOrderId: $this->scalar($row['channel_order_id'] ?? $row['order_id'] ?? $search) ?? $search,
-            status: $this->scalar($row['status'] ?? $shipment['status'] ?? null),
-            awb: $this->scalar($shipment['awb'] ?? $row['awb'] ?? $row['awb_code'] ?? null),
-            courierId: $this->scalar($shipment['courier_id'] ?? $row['courier_id'] ?? null),
-            courierName: $this->scalar($shipment['courier'] ?? $row['courier_name'] ?? null),
-        );
+        });
     }
 
     public function listCourierOptions(ShiprocketCourierOptionsRequest $request): ShiprocketCourierOptionsResult
     {
-        try {
-            $response = $this->send('get', '/courier/serviceability/', $request->toQuery());
-        } catch (ShiprocketRetryableException $exception) {
-            return new ShiprocketCourierOptionsResult(
-                provider: $this->provider(),
-                status: 'failed',
-                error: $exception->getMessage(),
-                retryable: true,
-            );
-        } catch (ShiprocketNonRetryableException $exception) {
-            return new ShiprocketCourierOptionsResult(
-                provider: $this->provider(),
-                status: 'rejected',
-                error: $exception->getMessage(),
-                retryable: false,
-            );
-        }
+        return $this->withAuditOperation('list_courier_options', function () use ($request): ShiprocketCourierOptionsResult {
+            try {
+                $response = $this->send('get', '/courier/serviceability/', $request->toQuery());
+            } catch (ShiprocketRetryableException $exception) {
+                return new ShiprocketCourierOptionsResult(
+                    provider: $this->provider(),
+                    status: 'failed',
+                    error: $exception->getMessage(),
+                    retryable: true,
+                );
+            } catch (ShiprocketNonRetryableException $exception) {
+                return new ShiprocketCourierOptionsResult(
+                    provider: $this->provider(),
+                    status: 'rejected',
+                    error: $exception->getMessage(),
+                    retryable: false,
+                );
+            }
 
-        return $this->courierOptionsFromJson($response['json']);
+            return $this->courierOptionsFromJson($response['json']);
+        });
     }
 
     public function assignAwb(string $externalShipmentId, ?string $courierId = null): ShiprocketAwbResult
     {
-        $body = ['shipment_id' => $externalShipmentId];
-        if ($courierId !== null && trim($courierId) !== '') {
-            $body['courier_id'] = $courierId;
-        }
+        return $this->withAuditOperation('assign_awb', function () use ($externalShipmentId, $courierId): ShiprocketAwbResult {
+            $body = ['shipment_id' => $externalShipmentId];
+            if ($courierId !== null && trim($courierId) !== '') {
+                $body['courier_id'] = $courierId;
+            }
 
-        try {
-            $response = $this->send('post', '/courier/assign/awb', $body);
-        } catch (ShiprocketRetryableException $exception) {
+            try {
+                $response = $this->send('post', '/courier/assign/awb', $body);
+            } catch (ShiprocketRetryableException $exception) {
+                return new ShiprocketAwbResult(
+                    provider: $this->provider(),
+                    status: 'failed',
+                    error: $exception->getMessage(),
+                    retryable: true,
+                );
+            } catch (ShiprocketNonRetryableException $exception) {
+                return new ShiprocketAwbResult(
+                    provider: $this->provider(),
+                    status: 'rejected',
+                    error: $exception->getMessage(),
+                    retryable: false,
+                );
+            }
+
+            $data = $this->firstArray($response['json']['response']['data'] ?? $response['json']['data'] ?? $response['json']);
+            $awb = $this->scalar($data['awb_code'] ?? $data['awb'] ?? $response['json']['awb_code'] ?? null);
+            if ($awb === null) {
+                return new ShiprocketAwbResult(
+                    provider: $this->provider(),
+                    status: 'rejected',
+                    error: $this->errorMessage($response['json'], 'Shiprocket rejected AWB assignment.'),
+                    retryable: false,
+                );
+            }
+
             return new ShiprocketAwbResult(
                 provider: $this->provider(),
-                status: 'failed',
-                error: $exception->getMessage(),
-                retryable: true,
+                status: 'assigned',
+                awb: $awb,
+                courierId: $this->scalar($data['courier_company_id'] ?? $data['courier_id'] ?? null),
+                courierName: $this->scalar($data['courier_name'] ?? null),
             );
-        } catch (ShiprocketNonRetryableException $exception) {
-            return new ShiprocketAwbResult(
-                provider: $this->provider(),
-                status: 'rejected',
-                error: $exception->getMessage(),
-                retryable: false,
-            );
-        }
-
-        $data = $this->firstArray($response['json']['response']['data'] ?? $response['json']['data'] ?? $response['json']);
-        $awb = $this->scalar($data['awb_code'] ?? $data['awb'] ?? $response['json']['awb_code'] ?? null);
-        if ($awb === null) {
-            return new ShiprocketAwbResult(
-                provider: $this->provider(),
-                status: 'rejected',
-                error: $this->errorMessage($response['json'], 'Shiprocket rejected AWB assignment.'),
-                retryable: false,
-            );
-        }
-
-        return new ShiprocketAwbResult(
-            provider: $this->provider(),
-            status: 'assigned',
-            awb: $awb,
-            courierId: $this->scalar($data['courier_company_id'] ?? $data['courier_id'] ?? null),
-            courierName: $this->scalar($data['courier_name'] ?? null),
-        );
+        });
     }
 
     public function requestPickup(string $externalShipmentId): ShiprocketPickupResult
     {
-        try {
-            $response = $this->send('post', '/courier/generate/pickup', [
-                'shipment_id' => [$externalShipmentId],
-            ], true, false);
-        } catch (ShiprocketRetryableException $exception) {
-            return new ShiprocketPickupResult(
-                provider: $this->provider(),
-                status: 'failed',
-                error: $exception->getMessage(),
-                retryable: true,
-            );
-        } catch (ShiprocketNonRetryableException $exception) {
-            return new ShiprocketPickupResult(
-                provider: $this->provider(),
-                status: 'rejected',
-                error: $exception->getMessage(),
-                retryable: false,
-            );
-        }
+        return $this->withAuditOperation('request_pickup', function () use ($externalShipmentId): ShiprocketPickupResult {
+            try {
+                $response = $this->send('post', '/courier/generate/pickup', [
+                    'shipment_id' => [$externalShipmentId],
+                ], true, false);
+            } catch (ShiprocketRetryableException $exception) {
+                return new ShiprocketPickupResult(
+                    provider: $this->provider(),
+                    status: 'failed',
+                    error: $exception->getMessage(),
+                    retryable: true,
+                );
+            } catch (ShiprocketNonRetryableException $exception) {
+                return new ShiprocketPickupResult(
+                    provider: $this->provider(),
+                    status: 'rejected',
+                    error: $exception->getMessage(),
+                    retryable: false,
+                );
+            }
 
-        if (ShiprocketAlreadyQueuedPickup::matchesHttp($response['status'], $response['json'])) {
+            if (ShiprocketAlreadyQueuedPickup::matchesHttp($response['status'], $response['json'])) {
+                return new ShiprocketPickupResult(
+                    provider: $this->provider(),
+                    status: 'already_requested',
+                    error: $this->errorMessage($response['json'], 'Already in Pickup Queue', $response['status']),
+                    alreadyQueued: true,
+                );
+            }
+
+            if ($response['status'] >= 400) {
+                return new ShiprocketPickupResult(
+                    provider: $this->provider(),
+                    status: 'rejected',
+                    error: $this->errorMessage($response['json'], 'Shiprocket rejected pickup generation.', $response['status']),
+                    retryable: false,
+                );
+            }
+
             return new ShiprocketPickupResult(
                 provider: $this->provider(),
-                status: 'already_requested',
-                error: $this->errorMessage($response['json'], 'Already in Pickup Queue', $response['status']),
-                alreadyQueued: true,
+                status: 'requested',
             );
-        }
-
-        if ($response['status'] >= 400) {
-            return new ShiprocketPickupResult(
-                provider: $this->provider(),
-                status: 'rejected',
-                error: $this->errorMessage($response['json'], 'Shiprocket rejected pickup generation.', $response['status']),
-                retryable: false,
-            );
-        }
-
-        return new ShiprocketPickupResult(
-            provider: $this->provider(),
-            status: 'requested',
-        );
+        });
     }
 
     public function generateLabel(string $externalShipmentId): ShiprocketDocumentResult
@@ -268,53 +285,55 @@ final class HttpShiprocketGateway implements ShiprocketGateway
      */
     public function generateLabelBatch(array $externalShipmentIds): ShiprocketDocumentResult
     {
-        if ($externalShipmentIds === []) {
-            return new ShiprocketDocumentResult(
-                provider: $this->provider(),
-                status: 'rejected',
-                error: 'Shiprocket label generation requires at least one shipment id.',
-                retryable: false,
-            );
-        }
+        return $this->withAuditOperation('generate_label', function () use ($externalShipmentIds): ShiprocketDocumentResult {
+            if ($externalShipmentIds === []) {
+                return new ShiprocketDocumentResult(
+                    provider: $this->provider(),
+                    status: 'rejected',
+                    error: 'Shiprocket label generation requires at least one shipment id.',
+                    retryable: false,
+                );
+            }
 
-        try {
-            $response = $this->send('post', '/courier/generate/label', [
-                'shipment_id' => array_map(
-                    fn (string $externalShipmentId): int => $this->providerNumericId($externalShipmentId),
-                    $externalShipmentIds,
-                ),
-            ]);
-        } catch (ShiprocketRetryableException $exception) {
-            return new ShiprocketDocumentResult(
-                provider: $this->provider(),
-                status: 'failed',
-                error: $exception->getMessage(),
-                retryable: true,
-            );
-        } catch (ShiprocketNonRetryableException $exception) {
-            return new ShiprocketDocumentResult(
-                provider: $this->provider(),
-                status: 'rejected',
-                error: $exception->getMessage(),
-                retryable: false,
-            );
-        }
+            try {
+                $response = $this->send('post', '/courier/generate/label', [
+                    'shipment_id' => array_map(
+                        fn (string $externalShipmentId): int => $this->providerNumericId($externalShipmentId),
+                        $externalShipmentIds,
+                    ),
+                ]);
+            } catch (ShiprocketRetryableException $exception) {
+                return new ShiprocketDocumentResult(
+                    provider: $this->provider(),
+                    status: 'failed',
+                    error: $exception->getMessage(),
+                    retryable: true,
+                );
+            } catch (ShiprocketNonRetryableException $exception) {
+                return new ShiprocketDocumentResult(
+                    provider: $this->provider(),
+                    status: 'rejected',
+                    error: $exception->getMessage(),
+                    retryable: false,
+                );
+            }
 
-        $url = $this->scalar($response['json']['label_url'] ?? null);
-        if ($url === null) {
+            $url = $this->scalar($response['json']['label_url'] ?? null);
+            if ($url === null) {
+                return new ShiprocketDocumentResult(
+                    provider: $this->provider(),
+                    status: 'rejected',
+                    error: $this->labelGenerationErrorMessage($response['json']),
+                    retryable: false,
+                );
+            }
+
             return new ShiprocketDocumentResult(
                 provider: $this->provider(),
-                status: 'rejected',
-                error: $this->labelGenerationErrorMessage($response['json']),
-                retryable: false,
+                status: 'generated',
+                url: $url,
             );
-        }
-
-        return new ShiprocketDocumentResult(
-            provider: $this->provider(),
-            status: 'generated',
-            url: $url,
-        );
+        });
     }
 
     public function generateManifest(string $externalShipmentId): ShiprocketDocumentResult
@@ -327,57 +346,59 @@ final class HttpShiprocketGateway implements ShiprocketGateway
      */
     public function generateManifestBatch(array $externalShipmentIds): ShiprocketDocumentResult
     {
-        if ($externalShipmentIds === []) {
+        return $this->withAuditOperation('generate_manifest', function () use ($externalShipmentIds): ShiprocketDocumentResult {
+            if ($externalShipmentIds === []) {
+                return new ShiprocketDocumentResult(
+                    provider: $this->provider(),
+                    status: 'rejected',
+                    error: 'Shiprocket manifest generation requires at least one shipment id.',
+                    retryable: false,
+                );
+            }
+
+            try {
+                $response = $this->send('post', '/manifests/generate', [
+                    'shipment_id' => array_map(
+                        fn (string $externalShipmentId): int => $this->providerNumericId($externalShipmentId),
+                        $externalShipmentIds,
+                    ),
+                ]);
+            } catch (ShiprocketRetryableException $exception) {
+                return new ShiprocketDocumentResult(
+                    provider: $this->provider(),
+                    status: 'failed',
+                    error: $exception->getMessage(),
+                    retryable: true,
+                );
+            } catch (ShiprocketNonRetryableException $exception) {
+                return new ShiprocketDocumentResult(
+                    provider: $this->provider(),
+                    status: 'rejected',
+                    error: $exception->getMessage(),
+                    retryable: false,
+                );
+            }
+
+            $json = $response['json'];
+            $url = $this->scalar($json['manifest_url'] ?? $json['payload']['manifest_url'] ?? null);
+            $documentId = $this->scalar($json['manifest_id'] ?? $json['payload']['manifest_id'] ?? null);
+
+            if ($url === null && $documentId === null) {
+                return new ShiprocketDocumentResult(
+                    provider: $this->provider(),
+                    status: 'rejected',
+                    error: $this->errorMessage($json, 'Shiprocket did not return a manifest URL or id.'),
+                    retryable: false,
+                );
+            }
+
             return new ShiprocketDocumentResult(
                 provider: $this->provider(),
-                status: 'rejected',
-                error: 'Shiprocket manifest generation requires at least one shipment id.',
-                retryable: false,
+                status: 'generated',
+                url: $url,
+                documentId: $documentId,
             );
-        }
-
-        try {
-            $response = $this->send('post', '/manifests/generate', [
-                'shipment_id' => array_map(
-                    fn (string $externalShipmentId): int => $this->providerNumericId($externalShipmentId),
-                    $externalShipmentIds,
-                ),
-            ]);
-        } catch (ShiprocketRetryableException $exception) {
-            return new ShiprocketDocumentResult(
-                provider: $this->provider(),
-                status: 'failed',
-                error: $exception->getMessage(),
-                retryable: true,
-            );
-        } catch (ShiprocketNonRetryableException $exception) {
-            return new ShiprocketDocumentResult(
-                provider: $this->provider(),
-                status: 'rejected',
-                error: $exception->getMessage(),
-                retryable: false,
-            );
-        }
-
-        $json = $response['json'];
-        $url = $this->scalar($json['manifest_url'] ?? $json['payload']['manifest_url'] ?? null);
-        $documentId = $this->scalar($json['manifest_id'] ?? $json['payload']['manifest_id'] ?? null);
-
-        if ($url === null && $documentId === null) {
-            return new ShiprocketDocumentResult(
-                provider: $this->provider(),
-                status: 'rejected',
-                error: $this->errorMessage($json, 'Shiprocket did not return a manifest URL or id.'),
-                retryable: false,
-            );
-        }
-
-        return new ShiprocketDocumentResult(
-            provider: $this->provider(),
-            status: 'generated',
-            url: $url,
-            documentId: $documentId,
-        );
+        });
     }
 
     public function printInvoice(string $externalShipmentId): ShiprocketDocumentResult
@@ -395,54 +416,58 @@ final class HttpShiprocketGateway implements ShiprocketGateway
 
     public function trackByAwb(string $awb): ShiprocketTrackResult
     {
-        $response = $this->send('get', '/courier/track/awb/'.$awb);
-        $tracking = $this->firstArray($response['json']['tracking_data'] ?? $response['json']);
+        return $this->withAuditOperation('track_awb', function () use ($awb): ShiprocketTrackResult {
+            $response = $this->send('get', '/courier/track/awb/'.$awb);
+            $tracking = $this->firstArray($response['json']['tracking_data'] ?? $response['json']);
 
-        return new ShiprocketTrackResult(
-            provider: $this->provider(),
-            status: $this->scalar($tracking['shipment_status'] ?? $tracking['status'] ?? 'unknown') ?? 'unknown',
-            activities: is_array($tracking['shipment_track'] ?? null) ? $tracking['shipment_track'] : [],
-            awb: $awb,
-        );
+            return new ShiprocketTrackResult(
+                provider: $this->provider(),
+                status: $this->scalar($tracking['shipment_status'] ?? $tracking['status'] ?? 'unknown') ?? 'unknown',
+                activities: is_array($tracking['shipment_track'] ?? null) ? $tracking['shipment_track'] : [],
+                awb: $awb,
+            );
+        });
     }
 
     public function trackByShipment(string $externalShipmentId, ?string $externalOrderId = null): ShiprocketTrackResult
     {
-        $orderId = trim((string) $externalOrderId);
-        if ($orderId === '') {
-            return new ShiprocketTrackResult(
-                provider: $this->provider(),
-                status: 'rejected',
-                error: 'Shiprocket shipment tracking requires an order id.',
-                retryable: false,
-                externalShipmentId: $externalShipmentId,
-            );
-        }
+        return $this->withAuditOperation('track_shipment', function () use ($externalShipmentId, $externalOrderId): ShiprocketTrackResult {
+            $orderId = trim((string) $externalOrderId);
+            if ($orderId === '') {
+                return new ShiprocketTrackResult(
+                    provider: $this->provider(),
+                    status: 'rejected',
+                    error: 'Shiprocket shipment tracking requires an order id.',
+                    retryable: false,
+                    externalShipmentId: $externalShipmentId,
+                );
+            }
 
-        try {
-            $response = $this->send('get', '/courier/track', [
-                'shipment_id' => $externalShipmentId,
-                'order_id' => $orderId,
-            ]);
-        } catch (ShiprocketRetryableException $exception) {
-            return new ShiprocketTrackResult(
-                provider: $this->provider(),
-                status: 'failed',
-                error: $exception->getMessage(),
-                retryable: true,
-                externalShipmentId: $externalShipmentId,
-            );
-        } catch (ShiprocketNonRetryableException $exception) {
-            return new ShiprocketTrackResult(
-                provider: $this->provider(),
-                status: 'rejected',
-                error: $exception->getMessage(),
-                retryable: false,
-                externalShipmentId: $externalShipmentId,
-            );
-        }
+            try {
+                $response = $this->send('get', '/courier/track', [
+                    'shipment_id' => $externalShipmentId,
+                    'order_id' => $orderId,
+                ]);
+            } catch (ShiprocketRetryableException $exception) {
+                return new ShiprocketTrackResult(
+                    provider: $this->provider(),
+                    status: 'failed',
+                    error: $exception->getMessage(),
+                    retryable: true,
+                    externalShipmentId: $externalShipmentId,
+                );
+            } catch (ShiprocketNonRetryableException $exception) {
+                return new ShiprocketTrackResult(
+                    provider: $this->provider(),
+                    status: 'rejected',
+                    error: $exception->getMessage(),
+                    retryable: false,
+                    externalShipmentId: $externalShipmentId,
+                );
+            }
 
-        return $this->trackResultFromCourierTrackJson($response['json'], $externalShipmentId);
+            return $this->trackResultFromCourierTrackJson($response['json'], $externalShipmentId);
+        });
     }
 
     public function getWalletBalance(): ShiprocketWalletBalanceResult
@@ -538,7 +563,81 @@ final class HttpShiprocketGateway implements ShiprocketGateway
             throw new ShiprocketRetryableException('Shiprocket request failed: '.$exception->getMessage());
         }
 
-        return $this->interpret($response, $throwOnClientError);
+        $interpreted = $this->interpret($response, $throwOnClientError);
+        if ($this->auditOperation !== null && ! str_contains($path, '/auth/login')) {
+            $this->lastHttpExchange = [
+                'method' => strtoupper($method),
+                'path' => $path,
+                'status' => $interpreted['status'],
+                'json' => $interpreted['json'],
+            ];
+        }
+
+        return $interpreted;
+    }
+
+    /**
+     * @template T
+     *
+     * @param  callable(): T  $callback
+     * @return T
+     */
+    private function withAuditOperation(string $operation, callable $callback): mixed
+    {
+        $startedAt = microtime(true);
+        $this->auditOperation = $operation;
+        $this->lastHttpExchange = null;
+        $domainStatus = null;
+        $providerMessage = null;
+        $retryable = null;
+
+        try {
+            $result = $callback();
+
+            if (is_object($result)) {
+                if (property_exists($result, 'status')) {
+                    $domainStatus = is_scalar($result->status ?? null) ? (string) $result->status : null;
+                }
+                if (property_exists($result, 'error')) {
+                    $providerMessage = is_scalar($result->error ?? null) ? (string) $result->error : null;
+                }
+                if (property_exists($result, 'retryable')) {
+                    $retryable = (bool) $result->retryable;
+                }
+            }
+
+            return $result;
+        } catch (ShiprocketRetryableException $exception) {
+            $providerMessage = $exception->getMessage();
+            $retryable = true;
+            $domainStatus = 'failed';
+
+            throw $exception;
+        } catch (ShiprocketNonRetryableException $exception) {
+            $providerMessage = $exception->getMessage();
+            $retryable = false;
+            $domainStatus = 'rejected';
+
+            throw $exception;
+        } finally {
+            if ($this->lastHttpExchange !== null) {
+                $this->resolveAuditor()->recordOperation(
+                    $operation,
+                    $this->lastHttpExchange,
+                    $startedAt,
+                    $domainStatus,
+                    $providerMessage,
+                    $retryable,
+                );
+            }
+            $this->auditOperation = null;
+            $this->lastHttpExchange = null;
+        }
+    }
+
+    private function resolveAuditor(): ShiprocketApiAuditor
+    {
+        return $this->apiAuditor ??= app(ShiprocketApiAuditor::class);
     }
 
     /**

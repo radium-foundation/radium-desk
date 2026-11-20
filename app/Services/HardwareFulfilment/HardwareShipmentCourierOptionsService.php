@@ -12,6 +12,8 @@ use App\Services\HardwareFulfilment\Data\HardwareShipmentCourierQuote;
 use App\Services\Shipping\Data\ShiprocketCourierOption;
 use App\Services\Shipping\Data\ShiprocketCourierOptionsRequest;
 use App\Services\Shipping\NullShiprocketGateway;
+use App\Services\Shipping\ShiprocketApiAuditContext;
+use App\Services\Shipping\ShiprocketApiAuditScope;
 use App\Services\Shipping\ShiprocketDisabledException;
 use App\Services\Shipping\ShiprocketNonRetryableException;
 use App\Services\Shipping\ShiprocketRetryableException;
@@ -63,13 +65,17 @@ class HardwareShipmentCourierOptionsService
                     $providerOrderId,
                 );
 
-                $result = $this->gateway->listCourierOptions(new ShiprocketCourierOptionsRequest(
+                $courierRequest = new ShiprocketCourierOptionsRequest(
                     pickupPostcode: $pickupPostcode,
                     deliveryPostcode: $ready['shipping']['pincode'],
                     weight: $ready['parcel']['weight'],
                     cod: $collection->serviceabilityCod(),
                     providerOrderId: $providerOrderId,
-                ));
+                );
+                $result = ShiprocketApiAuditScope::run(
+                    ShiprocketApiAuditContext::fromHardwareFulfilment($locked, null, $providerOrderId),
+                    fn () => $this->gateway->listCourierOptions($courierRequest),
+                );
 
                 if ($result->retryable) {
                     throw new ShiprocketRetryableException(
@@ -261,13 +267,17 @@ class HardwareShipmentCourierOptionsService
                     $providerOrderId,
                 );
 
-                $result = $this->gateway->listCourierOptions(new ShiprocketCourierOptionsRequest(
+                $courierRequest = new ShiprocketCourierOptionsRequest(
                     pickupPostcode: $pickupPostcode,
                     deliveryPostcode: $ready['shipping']['pincode'],
                     weight: $ready['parcel']['weight'],
                     cod: $collection->serviceabilityCod(),
                     providerOrderId: $providerOrderId,
-                ));
+                );
+                $result = ShiprocketApiAuditScope::run(
+                    ShiprocketApiAuditContext::fromHardwareFulfilment($locked, $shipment, $providerOrderId),
+                    fn () => $this->gateway->listCourierOptions($courierRequest),
+                );
 
                 if ($result->retryable) {
                     throw new ShiprocketRetryableException(
@@ -424,13 +434,17 @@ class HardwareShipmentCourierOptionsService
                     $providerOrderId,
                 );
 
-                $result = $this->gateway->listCourierOptions(new ShiprocketCourierOptionsRequest(
+                $courierRequest = new ShiprocketCourierOptionsRequest(
                     pickupPostcode: $pickupPostcode,
                     deliveryPostcode: $ready['shipping']['pincode'],
                     weight: $ready['parcel']['weight'],
                     cod: $collection->serviceabilityCod(),
                     providerOrderId: $providerOrderId,
-                ));
+                );
+                $result = ShiprocketApiAuditScope::run(
+                    ShiprocketApiAuditContext::fromHardwareFulfilment($locked, $shipment, $providerOrderId),
+                    fn () => $this->gateway->listCourierOptions($courierRequest),
+                );
 
                 if ($result->retryable) {
                     throw new ShiprocketRetryableException(

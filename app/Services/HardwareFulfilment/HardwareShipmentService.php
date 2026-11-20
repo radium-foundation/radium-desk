@@ -16,6 +16,8 @@ use App\Services\Shipping\Data\ShiprocketCreateOrderResult;
 use App\Services\Shipping\Data\ShiprocketSearchResult;
 use App\Services\Shipping\Data\ShiprocketTrackResult;
 use App\Services\Shipping\NullShiprocketGateway;
+use App\Services\Shipping\ShiprocketApiAuditContext;
+use App\Services\Shipping\ShiprocketApiAuditScope;
 use App\Services\Shipping\ShiprocketAwbAssignmentRejection;
 use App\Services\Shipping\ShiprocketDisabledException;
 use App\Services\Shipping\ShiprocketNonRetryableException;
@@ -116,7 +118,7 @@ class HardwareShipmentService
             }
 
             try {
-                $result = $this->gateway->createOrder($this->mapper->map(
+                $createRequest = $this->mapper->map(
                     $shipment,
                     $locked->commerceOrder,
                     $ready['invoice'],
@@ -124,7 +126,11 @@ class HardwareShipmentService
                     $ready['shipping'],
                     $ready['parcel'],
                     $ready['pickup'],
-                ));
+                );
+                $result = ShiprocketApiAuditScope::run(
+                    ShiprocketApiAuditContext::fromCreateRequest($createRequest, $shipment),
+                    fn () => $this->gateway->createOrder($createRequest),
+                );
             } catch (ShiprocketRetryableException $exception) {
                 $this->markAmbiguous($shipment, $exception->getMessage());
 
@@ -434,9 +440,12 @@ class HardwareShipmentService
             $this->assertProviderCallable();
 
             try {
-                $result = $this->gateway->assignAwb(
-                    (string) $shipment->external_shipment_id,
-                    $courier['courier_id'],
+                $result = ShiprocketApiAuditScope::run(
+                    ShiprocketApiAuditContext::fromShipment($shipment),
+                    fn () => $this->gateway->assignAwb(
+                        (string) $shipment->external_shipment_id,
+                        $courier['courier_id'],
+                    ),
                 );
             } catch (ShiprocketRetryableException $exception) {
                 $shipment->forceFill([
@@ -642,7 +651,7 @@ class HardwareShipmentService
         $courierId = trim((string) ($found->courierId ?? ''));
         $courierName = $found->courierName;
 
-        $track = $this->providerTrackForAwb($newAwb);
+        $track = $this->providerTrackForAwb($newAwb, $shipment);
         $normalized = ShiprocketTrackingNormalizer::normalize($track);
 
         $shipment->forceFill([
@@ -692,10 +701,17 @@ class HardwareShipmentService
         ]);
     }
 
-    private function providerTrackForAwb(string $awb): ShiprocketTrackResult
+    private function providerTrackForAwb(string $awb, ?Shipment $shipment = null): ShiprocketTrackResult
     {
         try {
-            return $this->gateway->trackByAwb($awb);
+            $context = $shipment !== null
+                ? ShiprocketApiAuditContext::fromShipment($shipment)
+                : null;
+
+            return ShiprocketApiAuditScope::run(
+                $context,
+                fn () => $this->gateway->trackByAwb($awb),
+            );
         } catch (ShiprocketRetryableException $exception) {
             throw ValidationException::withMessages([
                 'shipping' => $exception->getMessage().' Retry courier reassignment reconcile after Shiprocket is reachable.',
@@ -922,7 +938,10 @@ class HardwareShipmentService
 
         try {
             foreach (HardwareShipmentMerchantReference::searchReferences($shipment, $fulfilment) as $reference) {
-                $found = $this->gateway->searchOrders($reference);
+                $found = ShiprocketApiAuditScope::run(
+                    ShiprocketApiAuditContext::fromShipment($shipment),
+                    fn () => $this->gateway->searchOrders($reference),
+                );
                 if ($found->hasBindableIds()) {
                     return $found;
                 }
