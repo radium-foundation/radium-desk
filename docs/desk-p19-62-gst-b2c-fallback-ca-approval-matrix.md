@@ -2,7 +2,9 @@
 
 **ChatGPT ID:** P-19-62  
 **Engineering baseline:** PR #365 + P-19-62 regressions  
-**Statutory rollout:** **NOT READY** until rows below marked APPROVED with written evidence.
+**Statutory rollout:** **Business acceptance (P-20-12 ten-case matrix):** **10/10 APPROVED** via **Owner-designated Finance/CA** — see **`docs/desk-p20-13-gst-approval-matrix-validation.md`** (2026-11-20, task **P-20-13**). Rows below remain granular CA policy notes; they are **not** independent sign-offs unless separately evidenced.
+
+**Production flag activation:** still **NOT AUTHORIZED** without a separate Owner instruction.
 
 **Engineering note (P-19-65 / P-19-66):** When `STATUTORY_BUYER_GSTIN_B2C_FALLBACK_ENABLED=true`, eligible GSTIN failures **auto-convert** without manual approval. CA rows that say “manual approval” need **written updates** to approve the automatic runtime path — not a return to GSTIN-only invoice holds.
 
