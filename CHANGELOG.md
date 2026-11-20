@@ -1,5 +1,14 @@
 # Changelog
 
+## 4.1.109 — 2026-11-20 — Archive provider manifest PDFs (P-20-53)
+
+- **Hardware fulfilment:** After Shiprocket `POST /manifests/generate`, fetch the provider manifest PDF into private storage (`manifest_disk` / `manifest_path`); record `manifest_archived` provenance (SHA-256, source host).
+- **UI:** **View Manifest** (inline) and **Download Manifest** serve the archived provider PDF when present; fallback redirect to `manifest_url` unchanged.
+- **Config:** Allow `sr-core-cdn.shiprocket.in` for manifest PDF fetch host allowlist.
+- **Migrations:** None.
+- Rollback target: **v4.1.108** / `fe61f1376`.
+- Prompt **P-20-53**.
+
 ## 4.1.108 — 2026-11-20 — Alternative courier reassignment idempotency (P-20-49)
 
 - **Hardware fulfilment:** Allow one provider reassignment POST per target `courier_id` after a prior **rejected** attempt; block duplicate POSTs for the same courier; block further POSTs after successful **reassigned**.

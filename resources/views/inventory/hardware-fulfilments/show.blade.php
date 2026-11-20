@@ -663,6 +663,8 @@
             @endif
             @if($shipment->manifestUrl)
                 <p class="mt-3 mb-0">
+                    <a href="{{ route('inventory.hardware-fulfilments.manifest.view', $fulfilment) }}" id="hardware-manifest-view" target="_blank" rel="noopener">View Manifest</a>
+                    <span class="text-muted mx-1">·</span>
                     <a href="{{ route('inventory.hardware-fulfilments.manifest.download', $fulfilment) }}" id="hardware-manifest-download">Download Manifest</a>
                 </p>
             @endif

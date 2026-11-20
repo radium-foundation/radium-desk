@@ -42,11 +42,11 @@ class HardwareFulfilmentOperationalWorkflowTest extends TestCase
 
     private const BOX_SECRET = 'test-radiumbox-secret';
 
-    private FakeShiprocketGateway $fake;
+    protected FakeShiprocketGateway $fake;
 
-    private User $operator;
+    protected User $operator;
 
-    private User $admin;
+    protected User $admin;
 
     private InventoryProduct $product;
 
@@ -58,7 +58,10 @@ class HardwareFulfilmentOperationalWorkflowTest extends TestCase
 
         Storage::fake('local');
         $this->configureLocationSellerIdentity();
-        Http::fake();
+        Http::fake([
+            'https://fake.local/*' => Http::response('%PDF-1.4 test manifest', 200, ['Content-Type' => 'application/pdf']),
+            'https://manifests.test/*' => Http::response('%PDF-1.4 test manifest', 200, ['Content-Type' => 'application/pdf']),
+        ]);
         Http::preventStrayRequests();
         $this->fake = new FakeShiprocketGateway;
         $this->app->instance(ShiprocketGateway::class, $this->fake);
@@ -77,6 +80,10 @@ class HardwareFulfilmentOperationalWorkflowTest extends TestCase
             'shipping.pickup_postcodes.delhi' => '110001',
             'shipping.pickup_postcodes.mumbai' => '400001',
             'shipping.courier_options_ttl_seconds' => 900,
+            'shipping.document_download_allowed_hosts' => array_values(array_unique(array_merge(
+                config('shipping.document_download_allowed_hosts', []),
+                ['fake.local', 'manifests.test'],
+            ))),
             'shipping.channel_id' => '',
             'statutory_invoices.series_code' => '',
             'statutory_invoices.number_format' => '',
@@ -258,13 +265,16 @@ class HardwareFulfilmentOperationalWorkflowTest extends TestCase
 
         $this->actingAs($this->admin)
             ->get(route('inventory.hardware-fulfilments.manifest.download', $fulfilment->fresh()))
-            ->assertRedirect($freshShipment->manifest_url);
+            ->assertOk()
+            ->assertHeader('content-type', 'application/pdf');
         $this->actingAs($this->operator)
             ->get(route('inventory.hardware-fulfilments.manifest.download', $fulfilment->fresh()))
-            ->assertRedirect($freshShipment->manifest_url);
+            ->assertOk()
+            ->assertHeader('content-type', 'application/pdf');
         $this->actingAs($supportAgent)
             ->get(route('inventory.hardware-fulfilments.manifest.download', $fulfilment->fresh()))
-            ->assertRedirect($freshShipment->manifest_url);
+            ->assertOk()
+            ->assertHeader('content-type', 'application/pdf');
         $this->actingAs($supportAgent)
             ->post(route('inventory.hardware-fulfilments.manifest.store', $fulfilment->fresh()))
             ->assertForbidden();
@@ -274,7 +284,7 @@ class HardwareFulfilmentOperationalWorkflowTest extends TestCase
             ->get(route('inventory.hardware-fulfilments.manifest.download', $fulfilment->fresh()))
             ->assertForbidden();
 
-        Http::assertNothingSent();
+        $this->assertTrue($freshShipment->fresh()->hasUploadedManifest());
     }
 
     public function test_retired_package_photo_upload_removed_and_pickup_flow_unchanged(): void
@@ -805,7 +815,7 @@ class HardwareFulfilmentOperationalWorkflowTest extends TestCase
         return $fulfilment->fresh(['shipment', 'packageEvidences']) ?? $fulfilment;
     }
 
-    private function pickupReadyFulfilment(string $sourceId): HardwareFulfilment
+    protected function pickupReadyFulfilment(string $sourceId): HardwareFulfilment
     {
         $fulfilment = $this->awbFulfilment($sourceId);
         $this->actingAs($this->admin)
@@ -814,7 +824,7 @@ class HardwareFulfilmentOperationalWorkflowTest extends TestCase
         return $fulfilment->fresh(['shipment', 'packageEvidences']) ?? $fulfilment;
     }
 
-    private function manifestReadyFulfilment(string $sourceId): HardwareFulfilment
+    protected function manifestReadyFulfilment(string $sourceId): HardwareFulfilment
     {
         $fulfilment = $this->pickupReadyFulfilment($sourceId);
         $this->actingAs($this->admin)

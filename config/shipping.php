@@ -123,7 +123,7 @@ return [
         static fn (string $host): string => strtolower(trim($host)),
         explode(',', (string) env(
             'SHIPROCKET_DOCUMENT_DOWNLOAD_ALLOWED_HOSTS',
-            'apiv2.shiprocket.in,shiprocket.s3.amazonaws.com,kr-shipmultichannel.s3.amazonaws.com,kr-shiprocket.s3.amazonaws.com,sr-cdn-01.shiprocket.in,sr-cdn.shiprocket.in',
+            'apiv2.shiprocket.in,shiprocket.s3.amazonaws.com,kr-shipmultichannel.s3.amazonaws.com,kr-shiprocket.s3.amazonaws.com,sr-cdn-01.shiprocket.in,sr-cdn.shiprocket.in,sr-core-cdn.shiprocket.in',
         )),
     ))),
 

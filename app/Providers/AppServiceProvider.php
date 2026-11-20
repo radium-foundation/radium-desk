@@ -68,6 +68,7 @@ use App\Services\GlobalSearch\ServiceCaseGlobalSearchProvider;
 use App\Services\GlobalSearch\StatutoryInvoiceGlobalSearchProvider;
 use App\Services\GlobalSearchService;
 use App\Services\HardwareFulfilment\HardwareCarrierDocumentFetcher;
+use App\Services\HardwareFulfilment\HardwareCarrierProviderDocumentArchiver;
 use App\Services\HardwareFulfilment\HardwareDashboardRowChunkResolver;
 use App\Services\HardwareFulfilment\HardwareFulfilmentWorkQueue;
 use App\Services\HardwareFulfilment\HardwareNeedsActionSqlQuery;
@@ -357,6 +358,10 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(
             HardwareCarrierDocumentFetcher::class,
             static fn (): HardwareCarrierDocumentFetcher => HardwareCarrierDocumentFetcher::fromConfig(),
+        );
+        $this->app->singleton(
+            HardwareCarrierProviderDocumentArchiver::class,
+            static fn (): HardwareCarrierProviderDocumentArchiver => HardwareCarrierProviderDocumentArchiver::fromConfig(),
         );
         $this->app->bind(BoxFulfilmentCallbackGateway::class, NullBoxFulfilmentCallbackGateway::class);
     }

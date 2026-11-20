@@ -101,13 +101,13 @@ class HardwareFulfilmentSerialController extends Controller
             abort_unless(HardwareFulfilmentAccess::allows($request->user()), 403);
 
             return $next($request);
-        })->except(['downloadLabel', 'downloadManifest', 'downloadExternalLabel', 'downloadExternalManifest']);
+        })->except(['downloadLabel', 'downloadManifest', 'viewManifest', 'downloadExternalLabel', 'downloadExternalManifest']);
 
         $this->middleware(function ($request, $next) {
             abort_unless(HardwareFulfilmentAccess::allowsDocumentDownload($request->user()), 403);
 
             return $next($request);
-        })->only(['downloadLabel', 'downloadManifest', 'downloadExternalLabel', 'downloadExternalManifest']);
+        })->only(['downloadLabel', 'downloadManifest', 'viewManifest', 'downloadExternalLabel', 'downloadExternalManifest']);
     }
 
     public function index(Request $request): View
@@ -678,9 +678,28 @@ class HardwareFulfilmentSerialController extends Controller
         return redirect()->away($url);
     }
 
-    public function downloadManifest(Request $request, HardwareFulfilment $fulfilment): RedirectResponse
+    public function downloadManifest(Request $request, HardwareFulfilment $fulfilment): RedirectResponse|StreamedResponse
     {
         $this->assertCanDownloadFulfilmentDocuments($request, $fulfilment);
+        $streamed = $this->streamedProviderManifest($fulfilment, attachment: true);
+        if ($streamed !== null) {
+            return $streamed;
+        }
+
+        $url = $this->persistedDocumentUrl($fulfilment, 'manifest_url');
+        abort_unless($url !== null, 404);
+
+        return redirect()->away($url);
+    }
+
+    public function viewManifest(Request $request, HardwareFulfilment $fulfilment): RedirectResponse|StreamedResponse
+    {
+        $this->assertCanDownloadFulfilmentDocuments($request, $fulfilment);
+        $streamed = $this->streamedProviderManifest($fulfilment, attachment: false);
+        if ($streamed !== null) {
+            return $streamed;
+        }
+
         $url = $this->persistedDocumentUrl($fulfilment, 'manifest_url');
         abort_unless($url !== null, 404);
 
@@ -1002,9 +1021,42 @@ class HardwareFulfilmentSerialController extends Controller
         InventoryBranchScope::assertCanOperate($request->user(), $branch);
     }
 
-    private function persistedDocumentUrl(HardwareFulfilment $fulfilment, string $column): ?string
+    private function streamedProviderManifest(HardwareFulfilment $fulfilment, bool $attachment): ?StreamedResponse
+    {
+        $shipment = $this->resolveShipment($fulfilment);
+        if ($shipment === null || ! $shipment->hasUploadedManifest()) {
+            return null;
+        }
+
+        $disk = (string) $shipment->manifest_disk;
+        $path = (string) $shipment->manifest_path;
+        abort_unless(Storage::disk($disk)->exists($path), 404);
+
+        $filename = 'shiprocket-manifest-'.($shipment->manifest_id ?: $shipment->external_shipment_id).'.pdf';
+        $headers = ['Content-Type' => 'application/pdf'];
+        if (! $attachment) {
+            $headers['Content-Disposition'] = 'inline; filename="'.$filename.'"';
+        }
+
+        return Storage::disk($disk)->response($path, $filename, $headers);
+    }
+
+    private function resolveShipment(HardwareFulfilment $fulfilment): ?Shipment
     {
         $shipment = $fulfilment->shipment;
+        if ($shipment === null && $fulfilment->shipment_id !== null) {
+            $shipment = Shipment::query()->find($fulfilment->shipment_id);
+        }
+        if ($shipment === null) {
+            $shipment = Shipment::query()->where('hardware_fulfilment_id', $fulfilment->id)->first();
+        }
+
+        return $shipment;
+    }
+
+    private function persistedDocumentUrl(HardwareFulfilment $fulfilment, string $column): ?string
+    {
+        $shipment = $this->resolveShipment($fulfilment);
         if ($shipment === null && $fulfilment->shipment_id !== null) {
             $shipment = Shipment::query()->find($fulfilment->shipment_id);
         }
