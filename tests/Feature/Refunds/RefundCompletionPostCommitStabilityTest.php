@@ -129,8 +129,7 @@ class RefundCompletionPostCommitStabilityTest extends TestCase
                 'execution_reference_no' => 'UTR-SHOULD-NOT-APPLY',
                 'execution_transaction_id' => 'TXN-SHOULD-NOT-APPLY',
             ])
-            ->assertRedirect(route('refunds.show', $refund))
-            ->assertSessionHas('status', 'refund-completed');
+            ->assertSessionHasErrors('refund');
 
         Bus::assertNotDispatched(RefundCompletionFollowUpJob::class);
 

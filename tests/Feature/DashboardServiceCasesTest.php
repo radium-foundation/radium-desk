@@ -949,7 +949,8 @@ class DashboardServiceCasesTest extends TestCase
             ->get(route('dashboard'))
             ->assertOk()
             ->assertSee('Overdue')
-            ->assertSee('>1</div>', false);
+            ->assertSee('data-workspace="overdue"', false)
+            ->assertSee('dashboard-kpi-value', false);
 
         $this->actingAs($admin)
             ->get(route('dashboard', $this->dashboardQuery(['filter' => 'overdue'])))

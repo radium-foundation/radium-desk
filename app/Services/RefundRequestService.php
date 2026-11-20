@@ -393,7 +393,9 @@ class RefundRequestService
         $existing = $refund->fresh(['requester']);
 
         if ($existing !== null && $existing->status === RefundStatus::Closed) {
-            return $existing;
+            throw ValidationException::withMessages([
+                'refund' => 'This refund is already closed and cannot be completed again.',
+            ]);
         }
 
         if ($existing !== null && $existing->status === RefundStatus::Completed) {
