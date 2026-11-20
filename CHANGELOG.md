@@ -1,9 +1,13 @@
 # Changelog
 
-## Unreleased — P-20-27 permanent confirmed ineligibility → B2C
+## 4.1.104 — 2026-11-20 — Permanent confirmed GST ineligibility → B2C (P-20-27)
 
-- When buyer GST verification is enabled, **confirmed** B2B-ineligible outcomes (suspended/cancelled/invalid GSTIN, etc.) convert to B2C automatically without `STATUTORY_BUYER_GSTIN_B2C_FALLBACK_ENABLED` (Stage B).
-- Provider timeout, pending, and other uncertainty outcomes remain on hold; Stage B still gates manual `approve()` / `reject()` for those cases.
+- **Statutory:** When `STATUTORY_BUYER_GSTIN_VERIFICATION_ENABLED` is on, confirmed B2B-ineligible buyer GST outcomes (suspended/cancelled/invalid GSTIN, etc.) automatically convert to B2C **without** Stage B (`STATUTORY_BUYER_GSTIN_B2C_FALLBACK_ENABLED`).
+- Provider timeout, pending, and other uncertainty outcomes remain on hold; Stage B still gates manual `approve()` / `reject()` for exceptional cases.
+- Includes P-20-23 policy narrowing and P-20-24a PHPUnit Imagick preflight fix on `main` since v4.1.103.
+- **Migrations:** None.
+- Rollback target: v4.1.103 / `befc58e95`.
+- Prompts **RadiumDesk-P-20-27**, **P-20-28**; preparation `docs/desk-p20-27-permanent-confirmed-b2c-release-preparation.md`.
 
 ## Unreleased — P-19-65 automatic GSTIN failure-to-B2C
 
