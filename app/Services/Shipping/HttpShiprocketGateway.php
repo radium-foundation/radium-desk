@@ -188,43 +188,87 @@ final class HttpShiprocketGateway implements ShiprocketGateway
                 $body['courier_id'] = $courierId;
             }
 
-            try {
-                $response = $this->send('post', '/courier/assign/awb', $body);
-            } catch (ShiprocketRetryableException $exception) {
-                return new ShiprocketAwbResult(
-                    provider: $this->provider(),
-                    status: 'failed',
-                    error: $exception->getMessage(),
-                    retryable: true,
-                );
-            } catch (ShiprocketNonRetryableException $exception) {
-                return new ShiprocketAwbResult(
-                    provider: $this->provider(),
-                    status: 'rejected',
-                    error: $exception->getMessage(),
-                    retryable: false,
-                );
+            return $this->executeAssignAwbPost($body, 'assigned');
+        });
+    }
+
+    public function reassignCourierAwb(string $externalShipmentId, ?string $courierId = null): ShiprocketAwbResult
+    {
+        return $this->withAuditOperation('reassign_courier_awb', function () use ($externalShipmentId, $courierId): ShiprocketAwbResult {
+            $body = [
+                'shipment_id' => $externalShipmentId,
+                'status' => 'reassign',
+            ];
+            if ($courierId !== null && trim($courierId) !== '') {
+                $body['courier_id'] = $courierId;
             }
 
-            $data = $this->firstArray($response['json']['response']['data'] ?? $response['json']['data'] ?? $response['json']);
-            $awb = $this->scalar($data['awb_code'] ?? $data['awb'] ?? $response['json']['awb_code'] ?? null);
-            if ($awb === null) {
-                return new ShiprocketAwbResult(
-                    provider: $this->provider(),
-                    status: 'rejected',
-                    error: $this->errorMessage($response['json'], 'Shiprocket rejected AWB assignment.'),
-                    retryable: false,
-                );
-            }
+            return $this->executeAssignAwbPost($body, 'reassigned');
+        });
+    }
+
+    /**
+     * @param  array<string, mixed>  $body
+     */
+    private function executeAssignAwbPost(array $body, string $successStatus): ShiprocketAwbResult
+    {
+        try {
+            $response = $this->send('post', '/courier/assign/awb', $body);
+        } catch (ShiprocketRetryableException $exception) {
+            return new ShiprocketAwbResult(
+                provider: $this->provider(),
+                status: 'failed',
+                error: $exception->getMessage(),
+                retryable: true,
+            );
+        } catch (ShiprocketNonRetryableException $exception) {
+            return new ShiprocketAwbResult(
+                provider: $this->provider(),
+                status: 'rejected',
+                error: $exception->getMessage(),
+                retryable: false,
+            );
+        }
+
+        return $this->awbResultFromAssignAwbResponse($response['json'], $successStatus);
+    }
+
+    /**
+     * @param  array<string, mixed>  $json
+     */
+    private function awbResultFromAssignAwbResponse(array $json, string $successStatus): ShiprocketAwbResult
+    {
+        $assignStatus = $json['awb_assign_status'] ?? null;
+        if ($assignStatus !== null && (int) $assignStatus !== 1) {
+            $data = $this->firstArray($json['response']['data'] ?? $json['data'] ?? []);
+            $nestedError = $this->scalar($data['awb_assign_error'] ?? $data['error'] ?? null);
 
             return new ShiprocketAwbResult(
                 provider: $this->provider(),
-                status: 'assigned',
-                awb: $awb,
-                courierId: $this->scalar($data['courier_company_id'] ?? $data['courier_id'] ?? null),
-                courierName: $this->scalar($data['courier_name'] ?? null),
+                status: 'rejected',
+                error: $nestedError ?? $this->errorMessage($json, 'Shiprocket rejected AWB assignment.'),
+                retryable: false,
             );
-        });
+        }
+
+        $data = $this->firstArray($json['response']['data'] ?? $json['data'] ?? $json);
+        $awb = $this->scalar($data['awb_code'] ?? $data['awb'] ?? $json['awb_code'] ?? null);
+        if ($awb === null) {
+            return new ShiprocketAwbResult(
+                provider: $this->provider(),
+                status: 'ambiguous',
+                error: $this->errorMessage($json, 'Shiprocket assign/awb response did not include an AWB code.'),
+                retryable: false,
+            );
+        }
+
+        return new ShiprocketAwbResult(
+            provider: $this->provider(),
+            status: $successStatus,
+            awb: $awb,
+            courierId: $this->scalar($data['courier_company_id'] ?? $data['courier_id'] ?? null),
+            courierName: $this->scalar($data['courier_name'] ?? null),
+        );
     }
 
     public function requestPickup(string $externalShipmentId): ShiprocketPickupResult

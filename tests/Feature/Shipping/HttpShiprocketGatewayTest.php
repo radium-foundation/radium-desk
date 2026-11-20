@@ -523,6 +523,53 @@ class HttpShiprocketGatewayTest extends TestCase
         $this->assertSame('HTTP 400 — AWB not assigned', $result->error);
     }
 
+    public function test_reassign_courier_awb_sends_status_reassign(): void
+    {
+        Http::fake([
+            'https://apiv2.shiprocket.in/v1/external/auth/login' => Http::response(['token' => 'tok-1'], 200),
+            'https://apiv2.shiprocket.in/v1/external/courier/assign/awb' => Http::response([
+                'awb_assign_status' => 1,
+                'response' => [
+                    'data' => [
+                        'awb_code' => 'AWB-REASSIGN-1',
+                        'courier_company_id' => 252,
+                        'courier_name' => 'Shadowfax Instant',
+                    ],
+                ],
+            ], 200),
+        ]);
+
+        $result = (new HttpShiprocketGateway)->reassignCourierAwb('1735816935', '252');
+
+        $this->assertSame('reassigned', $result->status);
+        $this->assertSame('AWB-REASSIGN-1', $result->awb);
+        Http::assertSent(fn ($request): bool => str_contains($request->url(), '/courier/assign/awb')
+            && $request['shipment_id'] === '1735816935'
+            && $request['courier_id'] === '252'
+            && $request['status'] === 'reassign');
+    }
+
+    public function test_reassign_courier_awb_awb_assign_status_zero_is_rejected(): void
+    {
+        Http::fake([
+            'https://apiv2.shiprocket.in/v1/external/auth/login' => Http::response(['token' => 'tok-1'], 200),
+            'https://apiv2.shiprocket.in/v1/external/courier/assign/awb' => Http::response([
+                'awb_assign_status' => 0,
+                'response' => [
+                    'data' => [
+                        'awb_assign_error' => 'Awb Assignment Failed',
+                    ],
+                ],
+            ], 200),
+        ]);
+
+        $result = (new HttpShiprocketGateway)->reassignCourierAwb('1735660074', '252');
+
+        $this->assertSame('rejected', $result->status);
+        $this->assertFalse($result->retryable);
+        $this->assertStringContainsString('Awb Assignment Failed', (string) $result->error);
+    }
+
     public function test_assign_awb_reads_provider_evidence(): void
     {
         Http::fake([

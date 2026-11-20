@@ -33,6 +33,11 @@ interface ShiprocketGateway
 
     public function assignAwb(string $externalShipmentId, ?string $courierId = null): ShiprocketAwbResult;
 
+    /**
+     * Shiprocket courier change on an existing shipment (POST assign/awb with status reassign).
+     */
+    public function reassignCourierAwb(string $externalShipmentId, ?string $courierId = null): ShiprocketAwbResult;
+
     public function requestPickup(string $externalShipmentId): ShiprocketPickupResult;
 
     public function generateLabel(string $externalShipmentId): ShiprocketDocumentResult;

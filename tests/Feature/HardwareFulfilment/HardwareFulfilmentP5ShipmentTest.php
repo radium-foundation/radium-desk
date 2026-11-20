@@ -1156,6 +1156,78 @@ class HardwareFulfilmentP5ShipmentTest extends TestCase
         );
     }
 
+    public function test_provider_courier_reassign_posts_distinct_operation_and_updates_desk(): void
+    {
+        $fulfilment = $this->invoicedFulfilment('RDE960020', 'DELHI-RETAIL');
+        $this->shipments->createShipment($fulfilment);
+        $assigned = $this->shipments->assignAwb($fulfilment->fresh());
+        $shipment = Shipment::query()->firstOrFail();
+        $previousAwb = (string) $assigned->awb;
+
+        $this->fake->assignModeQueue = ['accepted'];
+
+        $outcome = $this->shipments->reassignCourierViaProviderApi(
+            $fulfilment->fresh(['shipment']),
+            courierId: '10',
+            executeProviderPost: true,
+            actor: $this->actor,
+        );
+
+        $this->assertSame(1, $this->fake->reassigns);
+        $this->assertSame(0, $this->fake->awbs);
+        $this->assertTrue($outcome->postedToProvider);
+        $this->assertSame('reassigned', $outcome->providerResult->status);
+        $this->assertSame('reassign', $this->fake->lastReassignRequest['status'] ?? null);
+        $this->assertNotNull($shipment->fresh()->provider_track_status);
+
+        $postEvent = ShipmentEvent::query()
+            ->where('shipment_id', $shipment->id)
+            ->where('activity', 'provider_courier_reassign_post')
+            ->first();
+        $this->assertSame('reassigned', $postEvent?->payload['outcome'] ?? null);
+    }
+
+    public function test_provider_courier_reassign_refuses_duplicate_post(): void
+    {
+        $fulfilment = $this->invoicedFulfilment('RDE960021', 'DELHI-RETAIL');
+        $this->shipments->createShipment($fulfilment);
+        $this->shipments->assignAwb($fulfilment->fresh());
+        $shipment = Shipment::query()->firstOrFail();
+
+        $this->fake->assignModeQueue = ['rejected'];
+
+        try {
+            $this->shipments->reassignCourierViaProviderApi(
+                $fulfilment->fresh(['shipment']),
+                executeProviderPost: true,
+                actor: $this->actor,
+            );
+        } catch (ValidationException) {
+        }
+
+        try {
+            $this->shipments->reassignCourierViaProviderApi(
+                $fulfilment->fresh(['shipment']),
+                executeProviderPost: true,
+                actor: $this->actor,
+            );
+            $this->fail('Duplicate provider courier reassignment POST must be blocked.');
+        } catch (ValidationException $exception) {
+            $this->assertStringContainsString(
+                'already recorded',
+                strtolower(implode(' ', $exception->errors()['shipping'] ?? [])),
+            );
+        }
+
+        $this->assertSame(1, $this->fake->reassigns);
+        $this->assertNotNull(
+            ShipmentEvent::query()
+                ->where('shipment_id', $shipment->id)
+                ->where('activity', 'provider_courier_reassign_post')
+                ->first(),
+        );
+    }
+
     public function test_courier_reassignment_reconcile_refuses_when_manifest_exists(): void
     {
         $fulfilment = $this->invoicedFulfilment('RDE960012', 'DELHI-RETAIL');

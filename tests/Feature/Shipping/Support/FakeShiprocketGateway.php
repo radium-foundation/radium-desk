@@ -298,6 +298,47 @@ final class FakeShiprocketGateway implements ShiprocketGateway
         };
     }
 
+    public int $reassigns = 0;
+
+    /** @var array<string, mixed>|null */
+    public ?array $lastReassignRequest = null;
+
+    public function reassignCourierAwb(string $externalShipmentId, ?string $courierId = null): ShiprocketAwbResult
+    {
+        $this->reassigns++;
+        $this->lastReassignRequest = [
+            'shipment_id' => $externalShipmentId,
+            'courier_id' => $courierId,
+            'status' => 'reassign',
+        ];
+        $mode = $this->assignModeQueue !== []
+            ? array_shift($this->assignModeQueue)
+            : ($this->nextAssignMode ?? 'accepted');
+
+        return match ($mode) {
+            'accepted', 'timeout_accepted' => $this->reassignedAwb($externalShipmentId, $courierId),
+            'rejected', 'courier_not_serviceable' => new ShiprocketAwbResult(
+                provider: $this->provider(),
+                status: 'rejected',
+                error: 'Fake provider rejected courier reassignment.',
+                retryable: false,
+            ),
+            'retryable', 'timeout' => new ShiprocketAwbResult(
+                provider: $this->provider(),
+                status: 'failed',
+                error: 'Fake provider unavailable.',
+                retryable: true,
+            ),
+            'ambiguous' => new ShiprocketAwbResult(
+                provider: $this->provider(),
+                status: 'ambiguous',
+                error: 'Fake provider returned ambiguous assign/awb response.',
+                retryable: false,
+            ),
+            default => throw new RuntimeException('Unknown fake Shiprocket reassignment mode: '.$mode),
+        };
+    }
+
     public function assignAwb(string $externalShipmentId, ?string $courierId = null): ShiprocketAwbResult
     {
         $this->awbs++;
@@ -722,6 +763,19 @@ final class FakeShiprocketGateway implements ShiprocketGateway
             awb: $row['awb'],
             courierId: $row['courier_id'],
             courierName: $row['courier_name'],
+        );
+    }
+
+    private function reassignedAwb(string $externalShipmentId, ?string $courierId): ShiprocketAwbResult
+    {
+        $assigned = $this->acceptAwb($externalShipmentId, $courierId);
+
+        return new ShiprocketAwbResult(
+            provider: $assigned->provider,
+            status: 'reassigned',
+            awb: $assigned->awb,
+            courierId: $assigned->courierId,
+            courierName: $assigned->courierName,
         );
     }
 
