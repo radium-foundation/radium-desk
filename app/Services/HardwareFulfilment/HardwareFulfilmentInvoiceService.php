@@ -11,9 +11,10 @@ use App\Models\HardwareFulfilment;
 use App\Models\InventoryBranch;
 use App\Models\StatutoryInvoice;
 use App\Models\User;
-use App\Services\StatutoryInvoice\BuyerGstin;
 use App\Services\StatutoryInvoice\CommerceBuyerGstMintGate;
 use App\Services\StatutoryInvoice\CommerceOrderBillToResolver;
+use App\Services\StatutoryInvoice\CommerceOrderBuyerGstB2cConversionService;
+use App\Services\StatutoryInvoice\CommerceStatutoryBuyerGstinForMint;
 use App\Services\StatutoryInvoice\Data\StatutoryInvoiceLineDraft;
 use App\Services\StatutoryInvoice\Data\StatutoryInvoiceMintRequest;
 use App\Services\StatutoryInvoice\StatutoryDocumentService;
@@ -38,6 +39,8 @@ class HardwareFulfilmentInvoiceService
         private readonly HardwareInclusiveGstReconciler $gst,
         private readonly CommerceOrderBillToResolver $commerceBillTo,
         private readonly CommerceBuyerGstMintGate $commerceBuyerGstMintGate,
+        private readonly CommerceStatutoryBuyerGstinForMint $commerceBuyerGstinForMint,
+        private readonly CommerceOrderBuyerGstB2cConversionService $buyerGstB2cConversions,
     ) {}
 
     public function issueInvoice(HardwareFulfilment $fulfilment, ?User $actor = null): StatutoryInvoice
@@ -75,13 +78,15 @@ class HardwareFulfilmentInvoiceService
             $this->commerceBuyerGstMintGate->assertNotBlocking($order);
             $serials = $this->requireAllocatedSerials($locked, $order);
             $branch = $this->requireFulfilmentBranch($locked);
-            $location = $this->issuer->require($branch->code, $order->buyer_gstin);
+            $buyerGstinForMint = $this->commerceBuyerGstinForMint->resolve($order);
+            $location = $this->issuer->require($branch->code, $buyerGstinForMint ?? $order->buyer_gstin);
 
             if ($order->branch_code === null) {
                 $order->forceFill(['branch_code' => $branch->code])->save();
             }
 
             $invoice = $this->invoices->mint($this->mintRequest($order, $location, $branch->id), $actor);
+            $this->buyerGstB2cConversions->attachIssuedStatutoryInvoice($order, $invoice);
             $this->linkRecords($locked, $order, $invoice, $location, $serials);
 
             return $invoice;
@@ -334,7 +339,7 @@ class HardwareFulfilmentInvoiceService
             sellerName: null,
             buyerName: $order->customer_name,
             buyerPhone: $order->customer_phone,
-            buyerGstin: BuyerGstin::normalize($order->buyer_gstin),
+            buyerGstin: $this->commerceBuyerGstinForMint->resolve($order),
             billingAddress: $billTo['flat'],
             placeOfSupplyState: $order->place_of_supply_state,
             discount: (float) ($order->discount ?? 0),

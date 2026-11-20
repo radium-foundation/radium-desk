@@ -101,7 +101,7 @@ final class CommerceOrderBuyerGstB2cConversionService
         }
 
         $record = $this->verifications->recordForOrder($order);
-        if (! BuyerGstB2cConversionPolicy::isEligibleForAutomaticConversion($record, $order)) {
+        if (! BuyerGstB2cConversionPolicy::isEligibleForManualConversion($record, $order)) {
             throw ValidationException::withMessages([
                 'commerce_order' => 'This order is not eligible for authorized B2C conversion.',
             ]);
