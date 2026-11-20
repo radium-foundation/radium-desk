@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.1.108 — 2026-11-20 — Alternative courier reassignment idempotency (P-20-49)
+
+- **Hardware fulfilment:** Allow one provider reassignment POST per target `courier_id` after a prior **rejected** attempt; block duplicate POSTs for the same courier; block further POSTs after successful **reassigned**.
+- **Operations:** `desk:shiprocket-discover-reassign-courier-options` for read-only serviceability on allowlisted fulfilments.
+- **Migrations:** None.
+- Rollback target: **v4.1.107** / `2881c73d9`.
+- Prompt **P-20-49**.
+
 ## 4.1.107 — 2026-11-20 — Shiprocket courier reassignment API (P-20-47)
 
 - **Shipping:** Explicit `reassignCourierAwb` — `POST /courier/assign/awb` with `status: reassign`, separate from first-time AWB assignment; parses `awb_assign_status` and treats missing AWB as ambiguous (no auto-retry).
