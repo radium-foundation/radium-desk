@@ -76,7 +76,7 @@ Billing address is never substituted for shipping.
 
 | Item | Rule |
 |------|------|
-| Merchant `order_id` | `HW-{source_id}` — never rotated |
+| Merchant `order_id` | `{source_id}` for new shipments (for example `RBP2281`); legacy `HW-{source_id}` rows remain searchable |
 | Idempotency key | `hardware:shiprocket:create:{fulfilment_id}` |
 | One shipment / fulfilment | unique `hardware_fulfilment_id` + `commerce_order_id` |
 | Provider ids / AWB | written only when local column is empty |

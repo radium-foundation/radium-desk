@@ -405,7 +405,14 @@ class HardwareShipmentDocumentsService
             return $this->gateway->trackByAwb($awb);
         }
 
-        return $this->gateway->trackByShipment((string) $shipment->external_shipment_id);
+        $orderId = trim((string) $shipment->external_order_id);
+        if ($orderId === '') {
+            throw ValidationException::withMessages([
+                'shipping' => 'Provider order id is required for shipment tracking.',
+            ]);
+        }
+
+        return $this->gateway->trackByShipment((string) $shipment->external_shipment_id, $orderId);
     }
 
     /**

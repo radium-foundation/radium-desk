@@ -91,7 +91,7 @@ class HardwareShipmentService
             $ready = $prepared['ready'];
 
             if ($this->shouldReconcileFirst($shipment)) {
-                $found = $this->searchForExisting($shipment);
+                $found = $this->searchForExisting($shipment, $locked);
                 if ($found->hasBindableIds()) {
                     return DB::transaction(fn (): Shipment => $this->bindCreated(
                         $locked->fresh() ?? $locked,
@@ -243,7 +243,7 @@ class HardwareShipmentService
                 }
 
                 if (filled($shipment->awb)) {
-                    $found = $this->searchForExisting($shipment);
+                    $found = $this->searchForExisting($shipment, $locked);
                     $this->assertSearchIdentity($locked, $shipment, $found);
 
                     if (filled($found->awb) && $found->awb === $shipment->awb) {
@@ -265,7 +265,7 @@ class HardwareShipmentService
                     ]);
                 }
 
-                $found = $this->searchForExisting($shipment);
+                $found = $this->searchForExisting($shipment, $locked);
                 if ($found->retryable) {
                     throw new ShiprocketRetryableException(
                         $found->error ?? 'Shiprocket search is retryable.',
@@ -341,7 +341,7 @@ class HardwareShipmentService
                     ]);
                 }
 
-                $found = $this->searchForExisting($shipment);
+                $found = $this->searchForExisting($shipment, $locked);
                 if ($found->retryable) {
                     throw new ShiprocketRetryableException(
                         $found->error ?? 'Shiprocket search is retryable.',
@@ -504,10 +504,10 @@ class HardwareShipmentService
     private function openShipment(HardwareFulfilment $fulfilment, array $ready, ?array $courier): Shipment
     {
         $order = $fulfilment->commerceOrder;
-        $shipmentNo = $this->shipmentNo($fulfilment);
+        $merchantReference = HardwareShipmentMerchantReference::forNewShipment($fulfilment);
 
         return Shipment::query()->create([
-            'shipment_no' => $shipmentNo,
+            'shipment_no' => $merchantReference,
             'commerce_order_id' => $order->id,
             'hardware_fulfilment_id' => $fulfilment->id,
             'provider' => $this->gateway->provider(),
@@ -825,9 +825,8 @@ class HardwareShipmentService
             ]);
         }
 
-        $expectedMerchantId = $this->shipmentNo($fulfilment);
         $merchantId = trim((string) ($found->merchantOrderId ?? ''));
-        if ($merchantId !== '' && $merchantId !== $expectedMerchantId) {
+        if ($merchantId !== '' && ! HardwareShipmentMerchantReference::acceptsMerchantOrderId($merchantId, $shipment, $fulfilment)) {
             throw ValidationException::withMessages([
                 'shipping' => 'Provider merchant reference does not match this fulfilment.',
             ]);
@@ -917,10 +916,23 @@ class HardwareShipmentService
         return Shipment::query()->where('hardware_fulfilment_id', $fulfilment->id)->first();
     }
 
-    private function searchForExisting(Shipment $shipment): ShiprocketSearchResult
+    private function searchForExisting(Shipment $shipment, HardwareFulfilment $fulfilment): ShiprocketSearchResult
     {
+        $lastFound = null;
+
         try {
-            return $this->gateway->searchOrders($shipment->shipment_no);
+            foreach (HardwareShipmentMerchantReference::searchReferences($shipment, $fulfilment) as $reference) {
+                $found = $this->gateway->searchOrders($reference);
+                if ($found->hasBindableIds()) {
+                    return $found;
+                }
+                if ($found->retryable) {
+                    return $found;
+                }
+                if ($found->found && $lastFound === null) {
+                    $lastFound = $found;
+                }
+            }
         } catch (ShiprocketRetryableException $exception) {
             $this->markAmbiguous($shipment, $exception->getMessage());
 
@@ -930,6 +942,16 @@ class HardwareShipmentService
                 'shipping' => $exception->getMessage(),
             ]);
         }
+
+        if ($lastFound instanceof ShiprocketSearchResult) {
+            return $lastFound;
+        }
+
+        return new ShiprocketSearchResult(
+            provider: $this->gateway->provider(),
+            found: false,
+            merchantOrderId: $shipment->shipment_no,
+        );
     }
 
     private function isAuthenticationFailure(ShiprocketNonRetryableException $exception): bool
@@ -976,11 +998,6 @@ class HardwareShipmentService
             'courier_id' => $id,
             'courier_name' => $fulfilment->selected_courier_name,
         ];
-    }
-
-    private function shipmentNo(HardwareFulfilment $fulfilment): string
-    {
-        return 'HW-'.$fulfilment->source_id;
     }
 
     private function assertProviderCallable(): void

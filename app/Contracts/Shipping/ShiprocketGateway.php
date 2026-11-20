@@ -53,7 +53,7 @@ interface ShiprocketGateway
 
     public function trackByAwb(string $awb): ShiprocketTrackResult;
 
-    public function trackByShipment(string $externalShipmentId): ShiprocketTrackResult;
+    public function trackByShipment(string $externalShipmentId, ?string $externalOrderId = null): ShiprocketTrackResult;
 
     public function getWalletBalance(): ShiprocketWalletBalanceResult;
 

@@ -249,7 +249,7 @@ class HardwareFulfilmentShipmentUiTest extends TestCase
         $this->assertSame(1, $this->fake->creates);
         $this->assertSame($invoices, StatutoryInvoice::query()->count());
         $this->assertSame($serials, HardwareFulfilmentSerial::query()->count());
-        $this->assertSame('HW-RDE900908', $fresh->shipment_no);
+        $this->assertSame('RDE900908', $fresh->shipment_no);
         $this->assertNotNull($fresh->provider_shipment_id);
 
         $this->actingAs($this->operator)

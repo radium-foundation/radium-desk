@@ -60,7 +60,7 @@ class HttpShiprocketGatewayTest extends TestCase
         });
         Http::assertSent(function ($request): bool {
             return str_ends_with($request->url(), '/orders/create/adhoc')
-                && $request['order_id'] === 'HW-RDE900800'
+                && $request['order_id'] === 'RDE900800'
                 && $request['pickup_location'] === 'RADDELHI'
                 && $request['billing_last_name'] === ''
                 && $request['billing_city'] === 'Indore';
@@ -78,7 +78,7 @@ class HttpShiprocketGatewayTest extends TestCase
         ]);
 
         $request = new ShiprocketCreateOrderRequest(
-            merchantOrderId: 'HW-RDE900800',
+            merchantOrderId: 'RDE900800',
             localShipmentId: 1,
             correlationId: 'corr-1',
             items: [[
@@ -979,6 +979,72 @@ class HttpShiprocketGatewayTest extends TestCase
         }
     }
 
+    public function test_track_by_shipment_requires_order_id(): void
+    {
+        $result = (new HttpShiprocketGateway)->trackByShipment('1735660074');
+
+        $this->assertSame('rejected', $result->status);
+        $this->assertNotNull($result->error);
+        Http::assertNothingSent();
+    }
+
+    public function test_track_by_shipment_sends_order_and_shipment_params(): void
+    {
+        Http::fake([
+            'https://apiv2.shiprocket.in/v1/external/auth/login' => Http::response(['token' => 'tok-1'], 200),
+            'https://apiv2.shiprocket.in/v1/external/courier/track*' => Http::response([
+                1740033690 => [
+                    'tracking_data' => [
+                        'shipment_status' => 13,
+                        'shipment_track' => [[
+                            'id' => 1735660074,
+                            'awb_code' => 'SF4531928884SPF',
+                            'current_status' => 'Pickup Error',
+                            'current_status_id' => 13,
+                        ]],
+                    ],
+                ],
+            ], 200),
+        ]);
+
+        $result = (new HttpShiprocketGateway)->trackByShipment('1735660074', '1740033690');
+
+        $this->assertSame('13', $result->status);
+        $this->assertCount(1, $result->activities);
+
+        Http::assertSent(function ($request): bool {
+            return str_contains($request->url(), '/courier/track')
+                && str_contains($request->url(), 'shipment_id=1735660074')
+                && str_contains($request->url(), 'order_id=1740033690');
+        });
+    }
+
+    public function test_track_by_shipment_surfaces_missing_activity_history(): void
+    {
+        Http::fake([
+            'https://apiv2.shiprocket.in/v1/external/auth/login' => Http::response(['token' => 'tok-1'], 200),
+            'https://apiv2.shiprocket.in/v1/external/courier/track*' => Http::response([
+                1740033690 => [
+                    'tracking_data' => [
+                        'shipment_status' => 0,
+                        'shipment_track' => [[
+                            'id' => 0,
+                            'current_status' => '',
+                            'current_status_id' => 0,
+                        ]],
+                        'error' => 'There is no activities found in our DB.',
+                    ],
+                ],
+            ], 200),
+        ]);
+
+        $result = (new HttpShiprocketGateway)->trackByShipment('1735660074', '1740033690');
+
+        $this->assertSame('unknown', $result->status);
+        $this->assertSame([], $result->activities);
+        $this->assertStringContainsString('no activities', strtolower((string) $result->error));
+    }
+
     private function tokenCacheKey(): string
     {
         $email = trim((string) config('shipping.api_email'));
@@ -997,7 +1063,7 @@ class HttpShiprocketGatewayTest extends TestCase
     private function request(): ShiprocketCreateOrderRequest
     {
         return new ShiprocketCreateOrderRequest(
-            merchantOrderId: 'HW-RDE900800',
+            merchantOrderId: 'RDE900800',
             localShipmentId: 1,
             correlationId: 'corr-1',
             items: [[
