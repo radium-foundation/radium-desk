@@ -13,8 +13,10 @@ use App\Services\StatutoryInvoice\CommerceOrderBuyerGstB2cConversionService;
 use App\Services\StatutoryInvoice\ServiceStatutoryGstB2bClassification;
 use App\Support\StatutoryInvoice\BuyerGstB2cConversionPolicy;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PHPUnit\Framework\Attributes\Group;
 use Tests\TestCase;
 
+#[Group('permanent_regression')]
 class CommerceOrderBuyerGstAutoB2cConversionTest extends TestCase
 {
     use RefreshDatabase;

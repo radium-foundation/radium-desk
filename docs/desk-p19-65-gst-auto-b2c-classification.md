@@ -18,10 +18,10 @@
 | `invalid_gstin_format`, `invalid_gstin_response` | Format / provider validation |
 | `incomplete_registration_snapshot`, `registration_address_incomplete`, `gstin_state_mismatch` | Verification snapshot facts |
 | Local `gstin_invalid` / `gstin_incomplete` (no provider run) | Format check only |
-| `provider_timeout`, `provider_unavailable`, `provider_rate_limited` | Technical — does **not** claim GSTIN invalid |
-| `provider_malformed_response`, `provider_error` | Technical — does **not** claim GSTIN invalid |
-| `verification_not_run`, `verification_provider_unconfigured` | Technical / incomplete verification |
-| `Pending` verification at mint | Treated as incomplete verification (no indefinite GSTIN-only hold) |
+| `provider_timeout`, `provider_unavailable`, `provider_rate_limited` | **Hold** — GST review; exceptional manual B2C only (`authorized_by` set) |
+| `provider_malformed_response`, `provider_error` | **Hold** — same as above |
+| `verification_not_run`, `verification_provider_unconfigured` | **Hold** — same as above |
+| `Pending` verification at mint | **Hold** — no automatic conversion (P-20-23) |
 
 ## Not changed
 

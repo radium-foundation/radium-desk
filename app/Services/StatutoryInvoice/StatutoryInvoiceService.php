@@ -72,6 +72,7 @@ class StatutoryInvoiceService
         private readonly CommerceOrderBillToResolver $commerceBillTo,
         private readonly CommerceBuyerGstMintGate $commerceBuyerGstMintGate,
         private readonly CommerceOrderBuyerGstB2cConversionService $buyerGstB2cConversions,
+        private readonly CommerceOrderBuyerGstVerificationService $buyerGstVerification,
     ) {}
 
     public function findBySource(
@@ -1065,6 +1066,10 @@ class StatutoryInvoiceService
                 b2cDowngradeCode: 'gstin_verification_b2c_conversion',
                 statutoryIssuanceNote: $authorizedB2c->invoice_remark,
             );
+        }
+
+        if ($this->buyerGstVerification->isEnabled()) {
+            return $this->serviceGstClassification->resolveForServiceOrder($order);
         }
 
         if ($this->supplyKinds->requireFromLines($resolvedHsns) !== StatutorySupplyKind::Service) {

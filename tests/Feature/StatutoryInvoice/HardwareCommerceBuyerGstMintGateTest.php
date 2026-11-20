@@ -249,6 +249,27 @@ class HardwareCommerceBuyerGstMintGateTest extends TestCase
         $this->assertSame(0, CommerceOrderBuyerGstB2cConversion::query()->count());
     }
 
+    public function test_hardware_inactive_registration_auto_b2c_mints_blank_buyer_gstin_when_fallback_on(): void
+    {
+        config(['statutory_invoices.buyer_gstin_verification.b2c_fallback.enabled' => true]);
+
+        $fulfilment = $this->readyFulfilment('RBP-P20-23-HW', 'DELHI-RETAIL', 1, '07AAICB5215F2ZX');
+        $order = $fulfilment->commerceOrder;
+        $this->attachReviewRequiredVerification($order, '07AAICB5215F2ZX');
+        $this->stockAt('DELHI-RETAIL', ['SN-P20-23-HW']);
+
+        $allocated = $this->allocation->allocateSerials($fulfilment->fresh(), ['SN-P20-23-HW'], $this->actor);
+        $this->assertNotNull($allocated->statutory_invoice_id);
+
+        $invoice = StatutoryInvoice::query()->findOrFail($allocated->statutory_invoice_id);
+        $this->assertNull($invoice->buyer_gstin);
+        $this->assertSame('07AAICB5215F2ZX', $order->fresh()->buyer_gstin);
+
+        $conversion = CommerceOrderBuyerGstB2cConversion::query()->firstOrFail();
+        $this->assertNull($conversion->authorized_by);
+        $this->assertSame($invoice->id, $conversion->statutory_invoice_id);
+    }
+
     public function test_repeated_blocked_attempts_remain_idempotent(): void
     {
         $fulfilment = $this->serialsAllocatedWithGstHold('RBP-P20-20-09', '07AAICB5215F2ZX');

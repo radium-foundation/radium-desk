@@ -14,14 +14,67 @@ use App\Support\Finance\GstStateCodes;
  */
 final class BuyerGstB2cConversionPolicy
 {
+    /**
+     * Provider or verification outcomes that confirm B2B cannot be supported (automatic B2C when fallback is on).
+     *
+     * @var list<string>
+     */
+    private const CONFIRMED_B2B_INELIGIBLE_REVIEW_REASONS = [
+        'inactive_registration',
+        'invalid_gstin_format',
+        'invalid_gstin_response',
+        'incomplete_registration_snapshot',
+        'registration_address_incomplete',
+        'gstin_state_mismatch',
+        'gstin_invalid',
+        'gstin_incomplete',
+    ];
+
+    /**
+     * Operational / technical outcomes — hold or exceptional manual B2C only; never automatic legal ineligibility.
+     *
+     * @var list<string>
+     */
+    private const PROVIDER_UNCERTAINTY_REVIEW_REASONS = [
+        'provider_timeout',
+        'provider_unavailable',
+        'provider_rate_limited',
+        'provider_malformed_response',
+        'provider_error',
+        'verification_not_run',
+        'verification_provider_unconfigured',
+    ];
+
     public static function fallbackPolicyEnabled(): bool
     {
         return (bool) config('statutory_invoices.buyer_gstin_verification.b2c_fallback.enabled', false);
     }
 
-    public static function isEligibleForManualConversion(?CommerceOrderBuyerGstVerification $record): bool
-    {
-        return self::isEligibleForAutomaticConversion($record, null);
+    public static function isEligibleForManualConversion(
+        ?CommerceOrderBuyerGstVerification $record,
+        ?CommerceOrder $order = null,
+    ): bool {
+        if (! self::fallbackPolicyEnabled()) {
+            return false;
+        }
+
+        if (self::isEligibleForAutomaticConversion($record, $order)) {
+            return true;
+        }
+
+        if ($record === null) {
+            return false;
+        }
+
+        if (self::qualifiesForB2bBilling($record)) {
+            return false;
+        }
+
+        return in_array($record->verification_status, [
+            BuyerGstVerificationStatus::Pending,
+            BuyerGstVerificationStatus::Failed,
+            BuyerGstVerificationStatus::ReviewRequired,
+        ], true);
     }
 
     public static function isEligibleForAutomaticConversion(
@@ -40,11 +93,29 @@ final class BuyerGstB2cConversionPolicy
             return false;
         }
 
-        return in_array($record->verification_status, [
-            BuyerGstVerificationStatus::Pending,
-            BuyerGstVerificationStatus::Failed,
-            BuyerGstVerificationStatus::ReviewRequired,
-        ], true);
+        if ($record->verification_status === BuyerGstVerificationStatus::Pending) {
+            return false;
+        }
+
+        return self::isConfirmedB2bIneligible($record);
+    }
+
+    public static function isConfirmedB2bIneligible(CommerceOrderBuyerGstVerification $record): bool
+    {
+        if (self::qualifiesForB2bBilling($record)) {
+            return false;
+        }
+
+        $reason = trim((string) ($record->review_reason ?? ''));
+
+        return in_array($reason, self::CONFIRMED_B2B_INELIGIBLE_REVIEW_REASONS, true);
+    }
+
+    public static function isProviderUncertaintyReviewReason(?string $reviewReason): bool
+    {
+        $reason = trim((string) ($reviewReason ?? ''));
+
+        return in_array($reason, self::PROVIDER_UNCERTAINTY_REVIEW_REASONS, true);
     }
 
     public static function qualifiesForB2bBilling(CommerceOrderBuyerGstVerification $record): bool

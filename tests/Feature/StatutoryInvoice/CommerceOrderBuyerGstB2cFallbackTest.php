@@ -24,8 +24,10 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\ValidationException;
+use PHPUnit\Framework\Attributes\Group;
 use Tests\TestCase;
 
+#[Group('permanent_regression')]
 class CommerceOrderBuyerGstB2cFallbackTest extends TestCase
 {
     use RefreshDatabase;
@@ -107,7 +109,7 @@ class CommerceOrderBuyerGstB2cFallbackTest extends TestCase
         $this->assertEmpty(app(CommerceBuyerGstMintGate::class)->blockingReasonsForOrder($order->fresh()));
     }
 
-    public function test_provider_timeout_converts_automatically_with_technical_remark(): void
+    public function test_provider_timeout_holds_without_automatic_conversion(): void
     {
         Http::fake([
             'https://api.whitebooks.in/public/search*' => fn () => throw new ConnectionException('timeout'),
@@ -118,12 +120,11 @@ class CommerceOrderBuyerGstB2cFallbackTest extends TestCase
         app(CommerceOrderBuyerGstVerificationService::class)->verifyAndPersist($order->fresh());
 
         $record = CommerceOrderBuyerGstVerification::query()->first();
-        $this->assertTrue(BuyerGstB2cConversionPolicy::isEligibleForAutomaticConversion($record, $order->fresh()));
+        $this->assertFalse(BuyerGstB2cConversionPolicy::isEligibleForAutomaticConversion($record, $order->fresh()));
+        $this->assertTrue(BuyerGstB2cConversionPolicy::isEligibleForManualConversion($record, $order->fresh()));
 
-        $conversion = CommerceOrderBuyerGstB2cConversion::query()->first();
-        $this->assertNotNull($conversion);
-        $this->assertStringContainsString('timeout', $conversion->invoice_remark);
-        $this->assertStringNotContainsString('07AAICB5215F2ZX', $conversion->invoice_remark);
+        $this->assertNull(CommerceOrderBuyerGstB2cConversion::query()->first());
+        $this->assertNotEmpty(app(CommerceBuyerGstMintGate::class)->blockingReasonsForOrder($order->fresh()));
     }
 
     public function test_provider_rate_limited_is_not_eligible_for_conversion(): void
@@ -138,10 +139,12 @@ class CommerceOrderBuyerGstB2cFallbackTest extends TestCase
 
         $record = CommerceOrderBuyerGstVerification::query()->first();
         $this->assertSame('provider_rate_limited', $record?->review_reason);
-        $this->assertTrue(BuyerGstB2cConversionPolicy::isEligibleForAutomaticConversion($record, $order->fresh()));
+        $this->assertFalse(BuyerGstB2cConversionPolicy::isEligibleForAutomaticConversion($record, $order->fresh()));
+        $this->assertTrue(BuyerGstB2cConversionPolicy::isEligibleForManualConversion($record, $order->fresh()));
+        $this->assertNull(CommerceOrderBuyerGstB2cConversion::query()->first());
     }
 
-    public function test_provider_5xx_converts_automatically(): void
+    public function test_provider_5xx_holds_without_automatic_conversion(): void
     {
         Http::fake([
             'https://api.whitebooks.in/public/search*' => Http::response('upstream error', 503),
@@ -151,8 +154,8 @@ class CommerceOrderBuyerGstB2cFallbackTest extends TestCase
         app(CommerceOrderBuyerGstVerificationService::class)->ensureSubmittedSnapshot($order);
         $record = app(CommerceOrderBuyerGstVerificationService::class)->verifyAndPersist($order->fresh());
         $this->assertContains($record?->review_reason, ['provider_unavailable', 'provider_error']);
-        $this->assertTrue(BuyerGstB2cConversionPolicy::isEligibleForAutomaticConversion($record, $order->fresh()));
-        $this->assertNotNull(CommerceOrderBuyerGstB2cConversion::query()->first());
+        $this->assertFalse(BuyerGstB2cConversionPolicy::isEligibleForAutomaticConversion($record, $order->fresh()));
+        $this->assertNull(CommerceOrderBuyerGstB2cConversion::query()->first());
     }
 
     public function test_conversion_requires_fallback_policy_enabled(): void
@@ -266,7 +269,7 @@ class CommerceOrderBuyerGstB2cFallbackTest extends TestCase
         $this->assertFalse(BuyerGstB2cConversionPolicy::isEligibleForAutomaticConversion($record, $order->fresh()));
     }
 
-    public function test_malformed_provider_response_converts_automatically_without_false_invalid_claim(): void
+    public function test_malformed_provider_response_holds_until_exceptional_manual_b2c(): void
     {
         Http::fake([
             'https://api.whitebooks.in/public/search*' => Http::response('not-json', 200),
@@ -277,16 +280,21 @@ class CommerceOrderBuyerGstB2cFallbackTest extends TestCase
         $record = app(CommerceOrderBuyerGstVerificationService::class)->verifyAndPersist($order->fresh());
         $this->assertSame('provider_malformed_response', $record?->review_reason);
 
-        $conversion = CommerceOrderBuyerGstB2cConversion::query()->first();
-        $this->assertNotNull($conversion);
-        $this->assertStringContainsString('unusable response', $conversion->invoice_remark);
+        $this->assertNull(CommerceOrderBuyerGstB2cConversion::query()->first());
 
         $decision = app(ServiceStatutoryGstB2bClassification::class)->resolveForServiceOrder($order->fresh());
-        $this->assertFalse($decision->requiresGstReview);
-        $this->assertNull($decision->buyerGstinForMint);
+        $this->assertTrue($decision->requiresGstReview);
+
+        $user = User::factory()->create();
+        $conversion = app(CommerceOrderBuyerGstB2cConversionService::class)->approve(
+            $order->fresh(),
+            $user,
+            'Exceptional manual B2C after malformed provider response.',
+        );
+        $this->assertStringContainsString('unusable response', $conversion->invoice_remark);
     }
 
-    public function test_provider_error_payload_converts_automatically(): void
+    public function test_provider_error_payload_holds_without_automatic_conversion(): void
     {
         Http::fake([
             'https://api.whitebooks.in/public/search*' => Http::response([
@@ -298,7 +306,7 @@ class CommerceOrderBuyerGstB2cFallbackTest extends TestCase
         app(CommerceOrderBuyerGstVerificationService::class)->ensureSubmittedSnapshot($order);
         $record = app(CommerceOrderBuyerGstVerificationService::class)->verifyAndPersist($order->fresh());
         $this->assertSame('provider_error', $record?->review_reason);
-        $this->assertNotNull(CommerceOrderBuyerGstB2cConversion::query()->first());
+        $this->assertNull(CommerceOrderBuyerGstB2cConversion::query()->first());
     }
 
     public function test_invalid_gstin_response_converts_on_verify_without_manual_approval(): void
