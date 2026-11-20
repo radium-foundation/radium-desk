@@ -1,5 +1,16 @@
 # Changelog
 
+## 4.1.106 — 2026-11-20 — Shiprocket tracking, audit logging, ops visibility (P-20-39 / P-20-40 / P-20-41)
+
+- **Shipping (P-20-39):** `trackByShipment` requires provider `order_id`; clean merchant references for **new** hardware shipments (`{source_id}`); historical `HW-{source_id}` rows and dual search unchanged.
+- **Shipping (P-20-40):** Sanitized `shiprocket_api` audit events on `shipment_events` (allowlisted `shiprocket_api_audit_v1`); audit persistence failures cannot break provider calls; `/auth/login` not audited.
+- **Hardware fulfilment (P-20-41):** Shipment operations panel on fulfilment show — lifecycle from persisted evidence (AWB ≠ pickup requested), provider track freshness, sanitized API audit list.
+- **Migrations:** None.
+- **Production config:** No new env keys.
+- Rollback target: **v4.1.105** / `e71c44a1a`.
+- Prompts **P-20-39**, **P-20-40**, **P-20-41**; PRs **#390**, **#391**, **#392**.
+- Application delta merges: `86aa26577`, `821955ac1`, `43b96b5d5`.
+
 ## 4.1.105 — 2026-11-20 — Shiprocket label recovery (P-20-30 / P-20-31 / P-20-32)
 
 - **Hardware fulfilment:** Best-effort read-only Shiprocket track sync immediately before **Generate Label** for AWB-bound rows that predate P-19-22 track persistence (RBP2281 / RBP2310 recovery).
