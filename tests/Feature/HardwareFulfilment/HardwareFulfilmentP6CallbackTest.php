@@ -273,7 +273,7 @@ class HardwareFulfilmentP6CallbackTest extends TestCase
         app(HardwareShipmentService::class)->createShipment($fulfilment->fresh(['commerceOrder.items']));
         $this->drainCallbackOutbox();
         $shipmentCall = $this->lastCallForState(HardwareFulfilmentState::ShipmentCreated);
-        $this->assertSame('HW-RDE900607', $shipmentCall->payload['shipment']['shipment_no']);
+        $this->assertSame('RDE900607', $shipmentCall->payload['shipment']['shipment_no']);
         $this->assertSame($fulfilment->fresh()->provider_shipment_id, $shipmentCall->payload['shipment']['provider_shipment_id']);
         $this->assertArrayNotHasKey('awb', $shipmentCall->payload['shipment']);
         $this->assertSame(HardwareFulfilmentState::ShipmentCreated->value, $shipmentCall->payload['state']);

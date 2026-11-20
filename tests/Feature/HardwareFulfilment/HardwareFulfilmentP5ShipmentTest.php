@@ -302,7 +302,7 @@ class HardwareFulfilmentP5ShipmentTest extends TestCase
         $this->assertSame(1, Shipment::query()->count());
         $this->assertSame(1, $this->fake->creates);
         $this->assertSame(HardwareFulfilmentState::ShipmentCreated, $fulfilment->fresh()->state);
-        $this->assertSame('HW-RDE900509', $first->shipment_no);
+        $this->assertSame('RDE900509', $first->shipment_no);
         $this->assertNotNull($first->external_order_id);
         $this->assertNotNull($first->external_shipment_id);
         $this->assertSame($first->external_shipment_id, $fulfilment->fresh()->provider_shipment_id);
@@ -750,6 +750,43 @@ class HardwareFulfilmentP5ShipmentTest extends TestCase
         $this->assertTrue($bound->isBound());
         $this->assertSame(HardwareFulfilmentState::ShipmentCreated, $fulfilment->fresh()->state);
         $this->assertSame(1, Shipment::query()->count());
+    }
+
+    public function test_new_create_uses_clean_merchant_reference(): void
+    {
+        $fulfilment = $this->invoicedFulfilment('RDE900550', 'DELHI-RETAIL');
+        $shipment = $this->shipments->createShipment($fulfilment);
+
+        $this->assertSame('RDE900550', $shipment->shipment_no);
+        $this->assertSame('RDE900550', $this->fake->lastCreateRequest?->merchantOrderId);
+    }
+
+    public function test_search_falls_back_to_legacy_hw_provider_reference(): void
+    {
+        $fulfilment = $this->invoicedFulfilment('RDE900598', 'DELHI-RETAIL');
+        $invoice = StatutoryInvoice::query()->findOrFail($fulfilment->statutory_invoice_id);
+        Shipment::query()->create([
+            'shipment_no' => 'RDE900598',
+            'commerce_order_id' => $fulfilment->commerce_order_id,
+            'hardware_fulfilment_id' => $fulfilment->id,
+            'provider' => 'test',
+            'status' => ShipmentStatus::Ambiguous,
+            'invoice_number' => $invoice->invoice_number,
+            'serial_numbers' => ['SN-RDE900598-001'],
+            'pickup_location' => 'TEST-DELHI-PICKUP',
+            'idempotency_key' => 'hardware:shiprocket:create:'.$fulfilment->id,
+            'correlation_id' => (string) Str::uuid(),
+            'failure_class' => 'ambiguous',
+            'last_error' => 'Previous create timed out.',
+            'attempts' => 1,
+        ]);
+        $this->fake->seedCatalog('HW-RDE900598', 'SR-LEG-ORD', 'SR-LEG-SHP');
+
+        $bound = $this->shipments->createShipment($fulfilment->fresh(['commerceOrder.items']));
+
+        $this->assertSame(0, $this->fake->creates);
+        $this->assertGreaterThanOrEqual(2, $this->fake->searches);
+        $this->assertSame('SR-LEG-ORD', $bound->external_order_id);
     }
 
     public function test_existing_provider_shipment_is_reconciled_without_create(): void

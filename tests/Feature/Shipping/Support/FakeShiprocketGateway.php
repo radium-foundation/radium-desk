@@ -585,7 +585,7 @@ final class FakeShiprocketGateway implements ShiprocketGateway
         );
     }
 
-    public function trackByShipment(string $externalShipmentId): ShiprocketTrackResult
+    public function trackByShipment(string $externalShipmentId, ?string $externalOrderId = null): ShiprocketTrackResult
     {
         $this->tracks++;
         $row = $this->awbCatalog[$externalShipmentId] ?? null;

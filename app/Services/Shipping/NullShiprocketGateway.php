@@ -95,7 +95,7 @@ final class NullShiprocketGateway implements ShiprocketGateway
         throw new ShiprocketDisabledException(self::MESSAGE);
     }
 
-    public function trackByShipment(string $externalShipmentId): ShiprocketTrackResult
+    public function trackByShipment(string $externalShipmentId, ?string $externalOrderId = null): ShiprocketTrackResult
     {
         throw new ShiprocketDisabledException(self::MESSAGE);
     }

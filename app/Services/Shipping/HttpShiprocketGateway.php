@@ -406,20 +406,43 @@ final class HttpShiprocketGateway implements ShiprocketGateway
         );
     }
 
-    public function trackByShipment(string $externalShipmentId): ShiprocketTrackResult
+    public function trackByShipment(string $externalShipmentId, ?string $externalOrderId = null): ShiprocketTrackResult
     {
-        $response = $this->send('get', '/courier/track', [
-            'shipment_id' => $externalShipmentId,
-        ]);
-        $tracking = $this->firstArray($response['json']['tracking_data'] ?? $response['json']);
+        $orderId = trim((string) $externalOrderId);
+        if ($orderId === '') {
+            return new ShiprocketTrackResult(
+                provider: $this->provider(),
+                status: 'rejected',
+                error: 'Shiprocket shipment tracking requires an order id.',
+                retryable: false,
+                externalShipmentId: $externalShipmentId,
+            );
+        }
 
-        return new ShiprocketTrackResult(
-            provider: $this->provider(),
-            status: $this->scalar($tracking['shipment_status'] ?? $tracking['status'] ?? 'unknown') ?? 'unknown',
-            activities: is_array($tracking['shipment_track'] ?? null) ? $tracking['shipment_track'] : [],
-            externalShipmentId: $externalShipmentId,
-            awb: $this->scalar($tracking['awb'] ?? $tracking['awb_code'] ?? null),
-        );
+        try {
+            $response = $this->send('get', '/courier/track', [
+                'shipment_id' => $externalShipmentId,
+                'order_id' => $orderId,
+            ]);
+        } catch (ShiprocketRetryableException $exception) {
+            return new ShiprocketTrackResult(
+                provider: $this->provider(),
+                status: 'failed',
+                error: $exception->getMessage(),
+                retryable: true,
+                externalShipmentId: $externalShipmentId,
+            );
+        } catch (ShiprocketNonRetryableException $exception) {
+            return new ShiprocketTrackResult(
+                provider: $this->provider(),
+                status: 'rejected',
+                error: $exception->getMessage(),
+                retryable: false,
+                externalShipmentId: $externalShipmentId,
+            );
+        }
+
+        return $this->trackResultFromCourierTrackJson($response['json'], $externalShipmentId);
     }
 
     public function getWalletBalance(): ShiprocketWalletBalanceResult
@@ -764,6 +787,86 @@ final class HttpShiprocketGateway implements ShiprocketGateway
         if ($email === '' || $password === '') {
             throw new ShiprocketDisabledException('Shiprocket API credentials are not configured. No HTTP was sent.');
         }
+    }
+
+    /**
+     * @param  array<string, mixed>  $json
+     */
+    private function trackResultFromCourierTrackJson(array $json, string $externalShipmentId): ShiprocketTrackResult
+    {
+        $tracking = $this->courierTrackPayloadFromJson($json);
+        $activities = is_array($tracking['shipment_track'] ?? null) ? $tracking['shipment_track'] : [];
+        $error = trim((string) ($tracking['error'] ?? ''));
+        $meaningful = $this->courierTrackActivitiesAreMeaningful($activities);
+
+        if ($error !== '' && ! $meaningful) {
+            return new ShiprocketTrackResult(
+                provider: $this->provider(),
+                status: 'unknown',
+                activities: [],
+                externalShipmentId: $externalShipmentId,
+                error: $this->sanitizeProviderText($error),
+                retryable: false,
+            );
+        }
+
+        $status = $this->scalar($tracking['shipment_status'] ?? $tracking['status'] ?? 'unknown') ?? 'unknown';
+        $first = is_array($activities[0] ?? null) ? $activities[0] : [];
+        if ($meaningful && isset($first['current_status_id']) && is_numeric($first['current_status_id'])) {
+            $status = (string) (int) $first['current_status_id'];
+        }
+
+        return new ShiprocketTrackResult(
+            provider: $this->provider(),
+            status: $status,
+            activities: $activities,
+            externalShipmentId: $externalShipmentId,
+            awb: $this->scalar($first['awb_code'] ?? $first['awb'] ?? $tracking['awb'] ?? $tracking['awb_code'] ?? null),
+            error: $error !== '' ? $this->sanitizeProviderText($error) : null,
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>  $json
+     * @return array<string, mixed>
+     */
+    private function courierTrackPayloadFromJson(array $json): array
+    {
+        if (isset($json['tracking_data']) && is_array($json['tracking_data'])) {
+            return $json['tracking_data'];
+        }
+
+        foreach ($json as $value) {
+            if (is_array($value) && isset($value['tracking_data']) && is_array($value['tracking_data'])) {
+                return $value['tracking_data'];
+            }
+        }
+
+        return $this->firstArray($json);
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $activities
+     */
+    private function courierTrackActivitiesAreMeaningful(array $activities): bool
+    {
+        foreach ($activities as $activity) {
+            if (! is_array($activity)) {
+                continue;
+            }
+
+            $status = trim((string) ($activity['current_status'] ?? $activity['activity'] ?? ''));
+            $id = $activity['id'] ?? $activity['shipment_id'] ?? null;
+            if ($status === '') {
+                continue;
+            }
+
+            if (! is_numeric($id) || (int) $id > 0) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
