@@ -44,12 +44,28 @@ class CommerceOrderBuyerGstAutoB2cConversionTest extends TestCase
         $this->assertSame(1, CommerceOrderBuyerGstB2cConversion::query()->count());
     }
 
-    public function test_fallback_disabled_preserves_gst_review_hold(): void
+    public function test_confirmed_ineligible_converts_with_verification_on_and_stage_b_off(): void
     {
         config(['statutory_invoices.buyer_gstin_verification.b2c_fallback.enabled' => false]);
         $order = $this->fixtureOrderWithVerification();
 
-        $this->assertNull(app(CommerceOrderBuyerGstB2cConversionService::class)->ensureAutomaticConversion($order));
+        $conversion = app(CommerceOrderBuyerGstB2cConversionService::class)->ensureAutomaticConversion($order);
+        $this->assertNotNull($conversion);
+        $decision = app(ServiceStatutoryGstB2bClassification::class)->resolveForServiceOrder($order->fresh());
+        $this->assertFalse($decision->requiresGstReview);
+        $this->assertNull($decision->buyerGstinForMint);
+    }
+
+    public function test_provider_timeout_holds_when_stage_b_off(): void
+    {
+        config(['statutory_invoices.buyer_gstin_verification.b2c_fallback.enabled' => false]);
+        $order = $this->fixtureOrderWithVerification();
+        CommerceOrderBuyerGstVerification::query()->where('commerce_order_id', $order->id)->update([
+            'review_reason' => 'provider_timeout',
+            'registration_status' => null,
+        ]);
+
+        $this->assertNull(app(CommerceOrderBuyerGstB2cConversionService::class)->ensureAutomaticConversion($order->fresh()));
         $decision = app(ServiceStatutoryGstB2bClassification::class)->resolveForServiceOrder($order->fresh());
         $this->assertTrue($decision->requiresGstReview);
     }

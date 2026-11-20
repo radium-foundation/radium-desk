@@ -21,7 +21,7 @@ use PHPUnit\Framework\Attributes\Group;
 use Tests\TestCase;
 
 /**
- * P-20-23 — Permanent automatic B2C for confirmed B2B ineligibility only.
+ * P-20-23 / P-20-27 — Permanent automatic B2C for confirmed B2B ineligibility (verification on; not Stage B).
  */
 #[Group('permanent_regression')]
 class CommerceOrderBuyerGstPermanentAutoB2cPolicyTest extends TestCase
@@ -132,7 +132,7 @@ class CommerceOrderBuyerGstPermanentAutoB2cPolicyTest extends TestCase
         ]);
     }
 
-    public function test_fallback_disabled_preserves_hold_without_conversion(): void
+    public function test_stage_b_fallback_off_still_auto_converts_confirmed_ineligibility(): void
     {
         config(['statutory_invoices.buyer_gstin_verification.b2c_fallback.enabled' => false]);
         $order = $this->orderWithVerification(
@@ -141,9 +141,25 @@ class CommerceOrderBuyerGstPermanentAutoB2cPolicyTest extends TestCase
             'Suspended',
         );
 
-        $this->assertNull(app(CommerceOrderBuyerGstB2cConversionService::class)->ensureAutomaticConversion($order));
+        $conversion = app(CommerceOrderBuyerGstB2cConversionService::class)->ensureAutomaticConversion($order);
+        $this->assertNotNull($conversion);
+        $this->assertNull($conversion->authorized_by);
         $decision = app(ServiceStatutoryGstB2bClassification::class)->resolveForServiceOrder($order->fresh());
-        $this->assertTrue($decision->requiresGstReview);
+        $this->assertFalse($decision->issueAsB2b);
+        $this->assertFalse($decision->requiresGstReview);
+    }
+
+    public function test_stage_b_off_provider_uncertainty_still_holds(): void
+    {
+        config(['statutory_invoices.buyer_gstin_verification.b2c_fallback.enabled' => false]);
+        $order = $this->orderWithVerification(
+            BuyerGstVerificationStatus::ReviewRequired,
+            'provider_timeout',
+            null,
+        );
+
+        $this->assertNull(app(CommerceOrderBuyerGstB2cConversionService::class)->ensureAutomaticConversion($order));
+        $this->assertNotEmpty(app(CommerceBuyerGstMintGate::class)->blockingReasonsForOrder($order->fresh()));
     }
 
     private function orderWithVerification(

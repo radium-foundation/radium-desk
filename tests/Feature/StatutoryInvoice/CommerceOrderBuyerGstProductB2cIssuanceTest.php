@@ -144,21 +144,18 @@ class CommerceOrderBuyerGstProductB2cIssuanceTest extends TestCase
         $this->assertSame('Rajasthan', $invoice->place_of_supply_state);
     }
 
-    public function test_product_without_approved_conversion_does_not_blank_buyer_gstin(): void
+    public function test_product_confirmed_ineligible_mints_b2c_without_stage_b_fallback(): void
     {
         config(['statutory_invoices.buyer_gstin_verification.b2c_fallback.enabled' => false]);
         $order = $this->productOrderWithInactiveVerification(autoConvert: false);
 
-        $decision = app(ServiceStatutoryGstB2bClassification::class)->resolveForServiceOrder($order->fresh());
-        $this->assertTrue($decision->requiresGstReview);
-        $this->assertSame(0, CommerceOrderBuyerGstB2cConversion::query()->where('commerce_order_id', $order->id)->count());
+        $invoice = $this->invoices->issueFromCommerceOrder($order->fresh(['items']), $this->actor);
 
-        try {
-            $this->invoices->issueFromCommerceOrder($order->fresh(['items']), $this->actor);
-            $this->fail('Expected GST review block before product B2B mint.');
-        } catch (ValidationException $exception) {
-            $this->assertStringContainsString('GST review', implode(' ', $exception->validator->errors()->all()));
-        }
+        $this->assertNull($invoice->buyer_gstin);
+        $this->assertSame(1, CommerceOrderBuyerGstB2cConversion::query()->where('commerce_order_id', $order->id)->count());
+        $conversion = CommerceOrderBuyerGstB2cConversion::query()->firstOrFail();
+        $this->assertNull($conversion->authorized_by);
+        $this->assertSame($invoice->id, $conversion->statutory_invoice_id);
     }
 
     public function test_duplicate_product_b2c_mint_is_idempotent(): void

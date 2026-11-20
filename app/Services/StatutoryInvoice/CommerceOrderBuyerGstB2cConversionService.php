@@ -32,7 +32,7 @@ final class CommerceOrderBuyerGstB2cConversionService
 
     public function ensureAutomaticConversion(CommerceOrder $order): ?CommerceOrderBuyerGstB2cConversion
     {
-        if (! BuyerGstB2cConversionPolicy::fallbackPolicyEnabled()) {
+        if (! BuyerGstB2cConversionPolicy::automaticConversionActive()) {
             return null;
         }
 

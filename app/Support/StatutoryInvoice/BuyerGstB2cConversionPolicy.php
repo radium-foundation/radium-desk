@@ -11,11 +11,14 @@ use App\Support\Finance\GstStateCodes;
 /**
  * When buyer GSTIN cannot support B2B billing, automatic B2C conversion applies
  * while verification and provider evidence remain in the audit trail.
+ *
+ * Confirmed ineligibility auto-converts whenever buyer GST verification is enabled (P-20-27).
+ * Stage B fallback flag gates exceptional manual conversion for provider-uncertainty outcomes only.
  */
 final class BuyerGstB2cConversionPolicy
 {
     /**
-     * Provider or verification outcomes that confirm B2B cannot be supported (automatic B2C when fallback is on).
+     * Provider or verification outcomes that confirm B2B cannot be supported (permanent automatic B2C).
      *
      * @var list<string>
      */
@@ -50,6 +53,16 @@ final class BuyerGstB2cConversionPolicy
         return (bool) config('statutory_invoices.buyer_gstin_verification.b2c_fallback.enabled', false);
     }
 
+    public static function verificationPolicyEnabled(): bool
+    {
+        return (bool) config('statutory_invoices.buyer_gstin_verification.enabled', false);
+    }
+
+    public static function automaticConversionActive(): bool
+    {
+        return self::verificationPolicyEnabled() || self::fallbackPolicyEnabled();
+    }
+
     public static function isEligibleForManualConversion(
         ?CommerceOrderBuyerGstVerification $record,
         ?CommerceOrder $order = null,
@@ -81,7 +94,7 @@ final class BuyerGstB2cConversionPolicy
         ?CommerceOrderBuyerGstVerification $record,
         ?CommerceOrder $order = null,
     ): bool {
-        if (! self::fallbackPolicyEnabled()) {
+        if (! self::automaticConversionActive()) {
             return false;
         }
 
