@@ -123,7 +123,7 @@ if [[ "$REQUIRE_IMAGICK" -eq 1 && -z "$HAS_IMAGICK" && "$PROFILE" == "isolated" 
     done
   fi
   [[ "$IMAGICK_SO" != "none" ]] || blocked "Imagick is required and imagick.so was not found for $PHP_BIN."
-  if ! "$PHP_BIN" -n -d "extension=${IMAGICK_SO}" -r 'exit(extension_loaded("imagick") ? 0 : 1)'; then
+  if ! "$PHP_BIN" -n -d "extension=${IMAGICK_SO}" -r 'if (!extension_loaded("imagick")) { exit(1); }'; then
     blocked "imagick.so at ${IMAGICK_SO} did not load under php -n."
   fi
   HAS_IMAGICK="imagick"

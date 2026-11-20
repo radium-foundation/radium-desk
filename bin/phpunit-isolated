@@ -46,7 +46,7 @@ resolve_imagick_so() {
 }
 
 php_args=(-n)
-if ! env PHP_INI_SCAN_DIR= "$PHP_BIN" -n -r 'exit(extension_loaded("imagick") ? 0 : 1)'; then
+if ! env PHP_INI_SCAN_DIR= "$PHP_BIN" -n -r 'if (!extension_loaded("imagick")) { exit(1); }'; then
   if imagick_so="$(resolve_imagick_so)"; then
     php_args+=(-d "extension=${imagick_so}")
   elif [[ -n "${DESK_IMAGICK_SO_STRICT:-}" ]]; then
