@@ -23,6 +23,7 @@ use App\Services\Shipping\ShiprocketRetryableException;
 use App\Services\Shipping\ShiprocketTrackingNormalizer;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use Throwable;
 
 class HardwareShipmentDocumentsService
 {
@@ -39,6 +40,7 @@ class HardwareShipmentDocumentsService
             }
 
             $this->assertAwbReady($locked, $shipment);
+            $shipment = $this->refreshProviderTrackBestEffort($shipment);
             $this->assertProviderCallable();
 
             $result = $this->callDocument(
@@ -416,6 +418,27 @@ class HardwareShipmentDocumentsService
             'provider_track_normalized' => $normalized['normalized']->value,
             'provider_tracked_at' => now(),
         ])->save();
+    }
+
+    /**
+     * Best-effort read-only provider track for AWB-bound rows created before track
+     * persistence shipped (P-19-22). Never fails label generation.
+     */
+    private function refreshProviderTrackBestEffort(Shipment $shipment): Shipment
+    {
+        if (! filled($shipment->awb) || $this->gateway instanceof NullShiprocketGateway) {
+            return $shipment;
+        }
+
+        try {
+            $track = $this->providerTrackForShipment($shipment);
+            $normalized = ShiprocketTrackingNormalizer::normalize($track);
+            $this->persistProviderTrack($shipment, $normalized);
+        } catch (Throwable) {
+            // Best-effort enrichment only.
+        }
+
+        return $shipment->fresh() ?? $shipment;
     }
 
     /**

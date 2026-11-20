@@ -1379,6 +1379,32 @@ class HardwareFulfilmentP5ShipmentTest extends TestCase
         $this->assertSame(1, $this->fake->tracks);
     }
 
+    public function test_generate_label_refreshes_stale_provider_track_before_calling_provider(): void
+    {
+        $fulfilment = $this->invoicedFulfilment('RDE900904', 'DELHI-RETAIL');
+        $this->shipments->createShipment($fulfilment);
+        $this->shipments->assignAwb($fulfilment->fresh());
+        $shipment = Shipment::query()->firstOrFail();
+        $shipment->forceFill([
+            'provider_track_status' => null,
+            'provider_track_normalized' => null,
+            'provider_tracked_at' => null,
+        ])->save();
+
+        $tracksBefore = $this->fake->tracks;
+        $this->fake->trackByAwbQueue = [
+            FakeShiprocketGateway::pickupErrorTrack((string) $shipment->awb),
+        ];
+
+        app(HardwareShipmentDocumentsService::class)->generateLabel($fulfilment->fresh(['shipment']), $this->actor);
+
+        $fresh = $shipment->fresh();
+        $this->assertSame('Pickup Error', $fresh->provider_track_status);
+        $this->assertNotNull($fresh->provider_tracked_at);
+        $this->assertGreaterThan($tracksBefore, $this->fake->tracks);
+        $this->assertNotNull($fresh->label_url);
+    }
+
     public function test_pickup_request_is_blocked_when_provider_track_reports_pickup_error(): void
     {
         $fulfilment = $this->invoicedFulfilment('RDE900903', 'DELHI-RETAIL');
