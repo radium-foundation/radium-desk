@@ -12,6 +12,7 @@ use App\Models\InventoryBranch;
 use App\Models\StatutoryInvoice;
 use App\Models\User;
 use App\Services\StatutoryInvoice\BuyerGstin;
+use App\Services\StatutoryInvoice\CommerceBuyerGstMintGate;
 use App\Services\StatutoryInvoice\CommerceOrderBillToResolver;
 use App\Services\StatutoryInvoice\Data\StatutoryInvoiceLineDraft;
 use App\Services\StatutoryInvoice\Data\StatutoryInvoiceMintRequest;
@@ -36,6 +37,7 @@ class HardwareFulfilmentInvoiceService
         private readonly StatutoryMintEligibility $eligibility,
         private readonly HardwareInclusiveGstReconciler $gst,
         private readonly CommerceOrderBillToResolver $commerceBillTo,
+        private readonly CommerceBuyerGstMintGate $commerceBuyerGstMintGate,
     ) {}
 
     public function issueInvoice(HardwareFulfilment $fulfilment, ?User $actor = null): StatutoryInvoice
@@ -70,6 +72,7 @@ class HardwareFulfilmentInvoiceService
             }
 
             $this->assertNoPricedServiceCompanion($order);
+            $this->commerceBuyerGstMintGate->assertNotBlocking($order);
             $serials = $this->requireAllocatedSerials($locked, $order);
             $branch = $this->requireFulfilmentBranch($locked);
             $location = $this->issuer->require($branch->code, $order->buyer_gstin);

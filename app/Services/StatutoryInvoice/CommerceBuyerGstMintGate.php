@@ -9,6 +9,7 @@ use App\Models\CommerceOrderBuyerGstVerification;
 use App\Services\StatutoryInvoice\Data\StatutoryInvoiceMintRequest;
 use App\Support\Finance\GstStateCodes;
 use App\Support\StatutoryInvoice\StatutoryBillingStructured;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Gates B2B commerce mint when buyer GSTIN verification policy is active.
@@ -79,6 +80,21 @@ final class CommerceBuyerGstMintGate
         }
 
         return $this->blockingReasonsForOrder($order);
+    }
+
+    /**
+     * Authoritative commerce-order gate for statutory mint (hardware and non-hardware).
+     */
+    public function assertNotBlocking(CommerceOrder $order): void
+    {
+        $reasons = $this->blockingReasonsForOrder($order);
+        if ($reasons === []) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'eligibility' => array_values(array_unique($reasons)),
+        ]);
     }
 
     /**
