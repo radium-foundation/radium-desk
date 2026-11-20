@@ -32,6 +32,7 @@ class HardwareShipmentDocumentsService
     public function __construct(
         private readonly HardwareShipmentEligibility $eligibility,
         private readonly ShiprocketGateway $gateway,
+        private readonly HardwareCarrierProviderDocumentArchiver $providerDocumentArchiver,
     ) {}
 
     public function generateLabel(HardwareFulfilment $fulfilment, ?User $actor = null): Shipment
@@ -212,6 +213,15 @@ class HardwareShipmentDocumentsService
             );
 
             ShipmentDocumentPersistence::persistManifest($shipment, $result);
+            $shipment = $shipment->fresh() ?? $shipment;
+
+            if ($result->url !== null) {
+                $shipment = $this->providerDocumentArchiver->archiveManifestPdf(
+                    $shipment,
+                    $result->url,
+                    $result->documentId,
+                );
+            }
 
             $this->recordShipmentEvent($shipment, 'manifest_generated', [
                 'manifest_url' => $result->url,
