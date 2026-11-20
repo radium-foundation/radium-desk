@@ -9,6 +9,8 @@ use App\Enums\StatutoryInvoiceSourceType;
 use App\Models\OutboxEvent;
 use App\Models\RadiumBoxStatutoryReceiptPublication;
 use App\Models\StatutoryInvoice;
+use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 class RadiumBoxStatutoryReceiptPublicationOutboxWriter
@@ -40,13 +42,24 @@ class RadiumBoxStatutoryReceiptPublicationOutboxWriter
         return DB::transaction(function () use ($invoice): OutboxEvent {
             $httpKey = RadiumBoxStatutoryReceiptPublicationPayload::httpIdempotencyKey($invoice);
 
-            RadiumBoxStatutoryReceiptPublication::query()->firstOrCreate(
-                ['statutory_invoice_id' => $invoice->id],
-                [
-                    'http_idempotency_key' => $httpKey,
-                    'status' => RadiumBoxStatutoryReceiptPublicationStatus::Pending,
-                ],
-            );
+            $publication = RadiumBoxStatutoryReceiptPublication::query()
+                ->where('statutory_invoice_id', $invoice->id)
+                ->lockForUpdate()
+                ->first();
+
+            if ($publication === null) {
+                try {
+                    RadiumBoxStatutoryReceiptPublication::query()->create([
+                        'statutory_invoice_id' => $invoice->id,
+                        'http_idempotency_key' => $httpKey,
+                        'status' => RadiumBoxStatutoryReceiptPublicationStatus::Pending,
+                    ]);
+                } catch (UniqueConstraintViolationException) {
+                    RadiumBoxStatutoryReceiptPublication::query()
+                        ->where('statutory_invoice_id', $invoice->id)
+                        ->firstOrFail();
+                }
+            }
 
             $outboxKey = self::outboxIdempotencyKey($invoice->id);
             $existing = OutboxEvent::query()
@@ -100,7 +113,7 @@ class RadiumBoxStatutoryReceiptPublicationOutboxWriter
                 'attempts' => 0,
                 'available_at' => now(),
             ]);
-        });
+        }, 5);
     }
 
     public static function outboxIdempotencyKey(int $statutoryInvoiceId): string
@@ -150,9 +163,9 @@ class RadiumBoxStatutoryReceiptPublicationOutboxWriter
     }
 
     /**
-     * @return \Illuminate\Support\Collection<int, RadiumBoxStatutoryReceiptPublication>
+     * @return Collection<int, RadiumBoxStatutoryReceiptPublication>
      */
-    private function awaitingActivationPublications(?int $limit = null): \Illuminate\Support\Collection
+    private function awaitingActivationPublications(?int $limit = null): Collection
     {
         $query = RadiumBoxStatutoryReceiptPublication::query()
             ->where('status', RadiumBoxStatutoryReceiptPublicationStatus::AwaitingActivation)
