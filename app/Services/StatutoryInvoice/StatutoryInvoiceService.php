@@ -323,6 +323,9 @@ class StatutoryInvoiceService
         }
 
         if ($this->hardwareCommerceInvoice->requiresHardwareSerialPath($order)) {
+            $order->loadMissing(['items', 'hardwareFulfilment']);
+            $this->commerceBuyerGstMintGate->assertNotBlocking($order);
+
             return $this->hardwareCommerceInvoice->issue($order, $actor);
         }
 
