@@ -133,7 +133,7 @@ class HardwareCommerceBuyerGstMintGateTest extends TestCase
     {
         $fulfilment = $this->readyFulfilment('RBP-P20-20-03', 'DELHI-RETAIL', 1, '07AAICB5215F2ZX');
         $order = $fulfilment->commerceOrder;
-        $this->attachReviewRequiredVerification($order, '07AAICB5215F2ZX');
+        $this->attachGstReviewHold($order, '07AAICB5215F2ZX', 'provider_timeout', null);
         $this->stockAt('DELHI-RETAIL', ['SN-P20-20-03']);
 
         $allocated = $this->allocation->allocateSerials($fulfilment->fresh(), ['SN-P20-20-03'], $this->actor);
@@ -249,9 +249,9 @@ class HardwareCommerceBuyerGstMintGateTest extends TestCase
         $this->assertSame(0, CommerceOrderBuyerGstB2cConversion::query()->count());
     }
 
-    public function test_hardware_inactive_registration_auto_b2c_mints_blank_buyer_gstin_when_fallback_on(): void
+    public function test_hardware_inactive_registration_auto_b2c_mints_blank_buyer_gstin_with_verification_on(): void
     {
-        config(['statutory_invoices.buyer_gstin_verification.b2c_fallback.enabled' => true]);
+        config(['statutory_invoices.buyer_gstin_verification.b2c_fallback.enabled' => false]);
 
         $fulfilment = $this->readyFulfilment('RBP-P20-23-HW', 'DELHI-RETAIL', 1, '07AAICB5215F2ZX');
         $order = $fulfilment->commerceOrder;
@@ -332,6 +332,15 @@ class HardwareCommerceBuyerGstMintGateTest extends TestCase
 
     private function attachReviewRequiredVerification(CommerceOrder $order, string $gstin): void
     {
+        $this->attachGstReviewHold($order, $gstin, 'inactive_registration', 'Suspended');
+    }
+
+    private function attachGstReviewHold(
+        CommerceOrder $order,
+        string $gstin,
+        string $reviewReason,
+        ?string $registrationStatus = null,
+    ): void {
         $this->ensureProviderVerificationRequired($order);
 
         CommerceOrderBuyerGstVerification::query()->create([
@@ -339,8 +348,8 @@ class HardwareCommerceBuyerGstMintGateTest extends TestCase
             'submitted_gstin' => $gstin,
             'verification_status' => BuyerGstVerificationStatus::ReviewRequired,
             'verification_source' => 'whitebooks',
-            'review_reason' => 'inactive_registration',
-            'registration_status' => 'Suspended',
+            'review_reason' => $reviewReason,
+            'registration_status' => $registrationStatus,
         ]);
     }
 
@@ -360,7 +369,7 @@ class HardwareCommerceBuyerGstMintGateTest extends TestCase
     private function serialsAllocatedWithGstHold(string $sourceId, string $buyerGstin): HardwareFulfilment
     {
         $fulfilment = $this->readyFulfilment($sourceId, 'DELHI-RETAIL', 1, $buyerGstin);
-        $this->attachReviewRequiredVerification($fulfilment->commerceOrder, $buyerGstin);
+        $this->attachGstReviewHold($fulfilment->commerceOrder, $buyerGstin, 'provider_timeout', null);
         $this->stockAt('DELHI-RETAIL', ['SN-'.$sourceId]);
 
         return $this->allocation->allocateSerials($fulfilment->fresh(), ['SN-'.$sourceId], $this->actor)

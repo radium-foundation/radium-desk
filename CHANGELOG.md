@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased — P-20-27 permanent confirmed ineligibility → B2C
+
+- When buyer GST verification is enabled, **confirmed** B2B-ineligible outcomes (suspended/cancelled/invalid GSTIN, etc.) convert to B2C automatically without `STATUTORY_BUYER_GSTIN_B2C_FALLBACK_ENABLED` (Stage B).
+- Provider timeout, pending, and other uncertainty outcomes remain on hold; Stage B still gates manual `approve()` / `reject()` for those cases.
+
 ## Unreleased — P-19-65 automatic GSTIN failure-to-B2C
 
 - When `STATUTORY_BUYER_GSTIN_B2C_FALLBACK_ENABLED` is on, orders with B2B-ineligible buyer GSTIN outcomes convert to B2C automatically (`ensureAutomaticConversion`); manual approval is no longer a mint blocker.

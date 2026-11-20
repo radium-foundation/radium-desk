@@ -390,6 +390,23 @@ class CommerceOrderBuyerGstB2cFallbackTest extends TestCase
 
     private function seedInactiveVerification(string $status, bool $autoConvert = true): CommerceOrder
     {
+        $order = $this->commerceOrder();
+
+        if (! $autoConvert) {
+            config(['statutory_invoices.buyer_gstin_verification.enabled' => false]);
+            CommerceOrderBuyerGstVerification::query()->create([
+                'commerce_order_id' => $order->id,
+                'submitted_gstin' => '07AAICB5215F2ZX',
+                'verification_status' => BuyerGstVerificationStatus::ReviewRequired,
+                'registration_status' => $status,
+                'review_reason' => 'inactive_registration',
+                'provider_payload_hash' => hash('sha256', 'b2c-fallback-manual-fixture'),
+            ]);
+            config(['statutory_invoices.buyer_gstin_verification.enabled' => true]);
+
+            return $order->fresh();
+        }
+
         Http::fake([
             'https://api.whitebooks.in/public/search*' => Http::response([
                 'data' => [
@@ -401,19 +418,10 @@ class CommerceOrderBuyerGstB2cFallbackTest extends TestCase
             ], 200),
         ]);
 
-        $order = $this->commerceOrder();
-        if (! $autoConvert) {
-            config(['statutory_invoices.buyer_gstin_verification.b2c_fallback.enabled' => false]);
-        }
-
         app(CommerceOrderBuyerGstVerificationService::class)->ensureSubmittedSnapshot($order);
         app(CommerceOrderBuyerGstVerificationService::class)->verifyAndPersist($order->fresh());
 
-        if (! $autoConvert) {
-            config(['statutory_invoices.buyer_gstin_verification.b2c_fallback.enabled' => true]);
-        }
-
-        return $order;
+        return $order->fresh();
     }
 
     /**
