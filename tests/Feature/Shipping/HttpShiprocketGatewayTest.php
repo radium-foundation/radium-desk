@@ -322,6 +322,43 @@ class HttpShiprocketGatewayTest extends TestCase
         });
     }
 
+    public function test_generate_label_surfaces_provider_response_when_label_url_missing(): void
+    {
+        Http::fake([
+            'https://apiv2.shiprocket.in/v1/external/auth/login' => Http::response(['token' => 'tok-1'], 200),
+            'https://apiv2.shiprocket.in/v1/external/courier/generate/label' => Http::response([
+                'label_created' => 0,
+                'label_url' => '',
+                'response' => 'Pickup is in error state. Contact Shiprocket support.',
+                'not_created' => [1735816935],
+            ], 200),
+        ]);
+
+        $result = (new HttpShiprocketGateway)->generateLabel('1735816935');
+
+        $this->assertSame('rejected', $result->status);
+        $this->assertNull($result->url);
+        $this->assertStringContainsString('Pickup is in error state', (string) $result->error);
+        $this->assertStringContainsString('label_created=0', (string) $result->error);
+        $this->assertStringContainsString('1735816935', (string) $result->error);
+        $this->assertStringNotContainsString('did not return a label URL', (string) $result->error);
+    }
+
+    public function test_generate_label_falls_back_when_response_fields_absent(): void
+    {
+        Http::fake([
+            'https://apiv2.shiprocket.in/v1/external/auth/login' => Http::response(['token' => 'tok-1'], 200),
+            'https://apiv2.shiprocket.in/v1/external/courier/generate/label' => Http::response([
+                'message' => 'Provider maintenance',
+            ], 200),
+        ]);
+
+        $result = (new HttpShiprocketGateway)->generateLabel('99');
+
+        $this->assertSame('rejected', $result->status);
+        $this->assertStringContainsString('Provider maintenance', (string) $result->error);
+    }
+
     public function test_generate_label_batch_posts_all_shipment_ids(): void
     {
         Http::fake([

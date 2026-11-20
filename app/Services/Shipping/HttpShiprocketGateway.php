@@ -305,7 +305,7 @@ final class HttpShiprocketGateway implements ShiprocketGateway
             return new ShiprocketDocumentResult(
                 provider: $this->provider(),
                 status: 'rejected',
-                error: $this->errorMessage($response['json'], 'Shiprocket did not return a label URL.'),
+                error: $this->labelGenerationErrorMessage($response['json']),
                 retryable: false,
             );
         }
@@ -915,6 +915,54 @@ final class HttpShiprocketGateway implements ShiprocketGateway
      *
      * @param  array<string, mixed>  $json
      */
+    /**
+     * Shiprocket label generation often returns HTTP 200 with label_created=0, an empty
+     * label_url, and a top-level string `response` explaining the rejection (not `message`).
+     *
+     * @param  array<string, mixed>  $json
+     */
+    private function labelGenerationErrorMessage(array $json): string
+    {
+        $parts = [];
+
+        $responseText = $this->scalar($json['response'] ?? null);
+        if ($responseText !== null) {
+            $parts[] = $this->sanitizeProviderText($responseText);
+        }
+
+        $labelCreated = $json['label_created'] ?? null;
+        if ($labelCreated === 0 || $labelCreated === '0' || $labelCreated === false) {
+            $parts[] = 'label_created=0';
+        }
+
+        $notCreated = $json['not_created'] ?? null;
+        if (is_array($notCreated) && $notCreated !== []) {
+            $ids = [];
+            foreach ($notCreated as $entry) {
+                if (is_scalar($entry)) {
+                    $ids[] = trim((string) $entry);
+                } elseif (is_array($entry)) {
+                    $id = $this->scalar($entry['shipment_id'] ?? $entry['id'] ?? null);
+                    $reason = $this->scalar($entry['message'] ?? $entry['reason'] ?? $entry['error'] ?? null);
+                    if ($id !== null && $reason !== null) {
+                        $ids[] = $id.': '.$this->sanitizeProviderText($reason);
+                    } elseif ($id !== null) {
+                        $ids[] = $id;
+                    }
+                }
+            }
+            if ($ids !== []) {
+                $parts[] = 'not_created: '.implode('; ', $ids);
+            }
+        }
+
+        if ($parts !== []) {
+            return implode(' — ', $parts);
+        }
+
+        return $this->errorMessage($json, 'Shiprocket did not return a label URL.');
+    }
+
     private function errorMessage(array $json, string $fallback, ?int $httpStatus = null): string
     {
         $parts = [];
