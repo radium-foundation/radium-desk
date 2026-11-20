@@ -1,5 +1,15 @@
 # Changelog
 
+## 4.1.107 — 2026-11-20 — Shiprocket courier reassignment API (P-20-47)
+
+- **Shipping:** Explicit `reassignCourierAwb` — `POST /courier/assign/awb` with `status: reassign`, separate from first-time AWB assignment; parses `awb_assign_status` and treats missing AWB as ambiguous (no auto-retry).
+- **Hardware fulfilment:** `reassignCourierViaProviderApi` with row locks, single-POST idempotency via `provider_courier_reassign_post` events, and Desk AWB/courier/track sync after provider reassignment.
+- **Operations:** Allowlisted command `desk:shiprocket-provider-courier-reassign` for HF **1530** / **1540** (RBP2281 / RBP2310 recovery).
+- **Migrations:** None.
+- **Production config:** `config/hardware_shiprocket_provider_recovery.php` allowlist only.
+- Rollback target: **v4.1.106** / `e36d078c7`.
+- Prompt **P-20-47**; PR **#394**; merge **`12feb069f`**.
+
 ## 4.1.106 — 2026-11-20 — Shiprocket tracking, audit logging, ops visibility (P-20-39 / P-20-40 / P-20-41)
 
 - **Shipping (P-20-39):** `trackByShipment` requires provider `order_id`; clean merchant references for **new** hardware shipments (`{source_id}`); historical `HW-{source_id}` rows and dual search unchanged.
