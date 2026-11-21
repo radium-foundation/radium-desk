@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — Central Wallet ledger unique index migration idempotency (P-21-16)
+
+- **Migrations:** `2026_11_21_170000_add_unique_business_reference_credit_to_central_wallet_ledger_entries` is idempotent: reuses the existing `cw_ledger_business_ref_type_uq` (or any equivalent unique on `business_reference` + `entry_type`); does not add redundant `cw_ledger_business_ref_entry_type_uq` on MariaDB/MySQL. `down()` drops only the legacy redundant index name, never the October migration index.
+- **Tests:** Migration regression suite + MariaDB 11.8 duplicate-index behavior gate.
+- Prompt **P-21-16** (release with desk-first recovery when Owner authorizes next deploy).
+
 ## 4.1.110 — 2026-11-21 — Closed-refund re-completion guard (P-21-01)
 
 - **Refunds:** Reject completion when refund status is already **Closed** with validation error on `refund` (prevents silent no-op / duplicate ledger credit risk).
