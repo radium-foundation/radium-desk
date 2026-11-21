@@ -86,6 +86,14 @@
             "classification": "tracked_release_file"
         },
         {
+            "path": "app/CentralWallet/Reliability/CentralWalletReleaseGateProbeHttpTransport.php",
+            "classification": "tracked_release_file"
+        },
+        {
+            "path": "app/CentralWallet/Reliability/CentralWalletReleaseGateProbeTransportException.php",
+            "classification": "tracked_release_file"
+        },
+        {
             "path": "app/CentralWallet/Reliability/CentralWalletReleaseGateFinalResolver.php",
             "classification": "tracked_release_file"
         },
