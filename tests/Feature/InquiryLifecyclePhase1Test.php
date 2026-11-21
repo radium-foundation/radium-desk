@@ -211,16 +211,27 @@ class InquiryLifecyclePhase1Test extends TestCase
         $incident = $this->createInquiryIncident($agent, 'SC00333', assignTo: $agent);
         $incident->order->update(['customer_phone' => '9123456780']);
 
-        $this->actingAs($agent)
+        $response = $this->actingAs($agent)
             ->get(route('dashboard.service-cases.customer-360', $incident))
             ->assertOk()
             ->assertSee('Case')
             ->assertSee($incident->display_reference)
             ->assertSee('Type')
             ->assertSee('Enquiry')
-            ->assertDontSee('INQ-SC00333')
             ->assertDontSee('RD Service')
             ->assertDontSee('data-customer-360-radiumbox-sync', false);
+
+        $content = $response->getContent();
+        $this->assertStringContainsString(
+            '&quot;orderId&quot;:null',
+            $content,
+            'Inquiry order id must stay out of the C360 search index.',
+        );
+        $this->assertMatchesRegularExpression(
+            '/<dt>Order ref\.<\/dt>\s*<dd>INQ-SC00333<\/dd>/s',
+            $content,
+            'Statutory mint outbox may show the inquiry order ref for Finance diagnostics.',
+        );
     }
 
     public function test_product_order_retains_commercial_purchase_actions_in_menu_presenter_and_drawer(): void

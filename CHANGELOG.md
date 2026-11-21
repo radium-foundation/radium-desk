@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.1.110 — 2026-11-21 — Closed-refund re-completion guard (P-21-01)
+
+- **Refunds:** Reject completion when refund status is already **Closed** with validation error on `refund` (prevents silent no-op / duplicate ledger credit risk).
+- **Tests:** Wallet refund execution and refund completion stability assertions aligned.
+- **Migrations:** None.
+- Rollback target: **v4.1.109** / `c46d6cf6b`.
+- Prompt **P-21-03** (deploy of PR **#397** / `fdbfb4727`).
+
 ## 4.1.109 — 2026-11-20 — Archive provider manifest PDFs (P-20-53)
 
 - **Hardware fulfilment:** After Shiprocket `POST /manifests/generate`, fetch the provider manifest PDF into private storage (`manifest_disk` / `manifest_path`); record `manifest_archived` provenance (SHA-256, source host).
