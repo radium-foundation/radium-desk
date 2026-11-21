@@ -9,6 +9,7 @@ use App\Enums\RefundRevocationAttemptStatus;
 use App\Enums\RefundStatus;
 use App\Models\RefundRequest;
 use App\Models\RefundRevocationAttempt;
+use App\Services\Refunds\DeskFirstWalletRefundInterruptedCompletionRecorder;
 
 /**
  * Supported operator-facing recovery signals for desk-first wallet refunds (flag on).
@@ -30,8 +31,15 @@ final class DeskFirstWalletRefundRecoveryInspector
             return null;
         }
 
-        return 'Central Wallet credit is already posted ('.$this->walletReference((int) $credit->id).'). '
+        $notice = 'Central Wallet credit is already posted ('.$this->walletReference((int) $credit->id).'). '
             .'Spoke audit is not confirmed yet. Use Complete again to retry audit acknowledgement only—do not create a manual wallet credit.';
+
+        $lastFailure = DeskFirstWalletRefundInterruptedCompletionRecorder::latestSpokeAuditFailureMessage($refund);
+        if ($lastFailure !== null) {
+            $notice .= ' Last spoke audit error from Desk records: '.$lastFailure;
+        }
+
+        return $notice;
     }
 
     public function revocationRecoveryNotice(RefundRequest $refund): ?string

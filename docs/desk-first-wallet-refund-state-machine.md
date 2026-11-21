@@ -50,6 +50,8 @@ revoked
 
 ## Operator recovery (supported)
 
+Failed **Complete** attempts after a CW credit commits record `refund.desk_first_spoke_audit_failed` on the refund (Desk audit log). The recovery banner may include the latest spoke error message from that event.
+
 `DeskFirstWalletRefundRecoveryInspector` + refund detail alerts:
 
 | Situation | UI signal | Operator action |

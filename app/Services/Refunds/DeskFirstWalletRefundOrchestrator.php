@@ -9,9 +9,7 @@ use App\Services\RadiumBox\RadiumBoxWalletRefundClient;
 use App\Services\RdService\RdServiceInWalletRefundClient;
 use App\Services\RdService\RdServiceNetWalletRefundClient;
 use App\Support\Refunds\DeskFirstWalletRefundSpokePolicy;
-use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
-use InvalidArgumentException;
 
 /**
  * Desk-first wallet refund: authoritative Central Wallet credit on Desk, then spoke audit.
@@ -19,6 +17,7 @@ use InvalidArgumentException;
 final class DeskFirstWalletRefundOrchestrator
 {
     public function __construct(
+        private readonly DeskFirstWalletRefundDurableExecutionService $durableExecution,
         private readonly CentralWalletRefundLedgerCreditService $deskCredits,
         private readonly RdServiceInWalletRefundClient $rdServiceInWalletRefundClient,
         private readonly RdServiceNetWalletRefundClient $rdServiceNetWalletRefundClient,
@@ -39,24 +38,12 @@ final class DeskFirstWalletRefundOrchestrator
     {
         DeskFirstWalletRefundSpokePolicy::assertSpokeAllowedForDeskFirst($orderId, $this->destinations);
 
-        $correlationId = (string) Str::uuid();
-
-        try {
-            $deskCredit = $this->deskCredits->creditForRefund($refund, $correlationId);
-        } catch (InvalidArgumentException $exception) {
-            throw ValidationException::withMessages([
-                'refund' => 'Central Wallet credit could not be posted: '.$exception->getMessage(),
-            ]);
-        }
+        $deskCredit = $this->durableExecution->ensureDeskCreditCommitted($refund, $actor);
 
         $ledgerEntryId = (int) $deskCredit['ledger_entry_id'];
         $walletReference = (string) $deskCredit['wallet_reference'];
 
-        try {
-            $spoke = $this->recordSpokeAudit($refund, $orderId, $amount, $ledgerEntryId, $walletReference);
-        } catch (ValidationException $exception) {
-            throw $exception;
-        }
+        $spoke = $this->recordSpokeAudit($refund, $orderId, $amount, $ledgerEntryId, $walletReference);
 
         $remarks = trim((string) ($payload['remarks'] ?? ''));
         $defaultRemark = 'Central Wallet credited on Desk; spoke audit recorded.';
@@ -79,6 +66,19 @@ final class DeskFirstWalletRefundOrchestrator
                 'spoke_audit' => $spoke,
             ]),
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function recordSpokeAuditForRefund(
+        RefundRequest $refund,
+        string $orderId,
+        string $amount,
+        int $ledgerEntryId,
+        string $walletReference,
+    ): array {
+        return $this->recordSpokeAudit($refund, $orderId, $amount, $ledgerEntryId, $walletReference);
     }
 
     /**
