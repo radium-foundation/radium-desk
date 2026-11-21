@@ -17,6 +17,7 @@ use App\Models\RefundRequest;
 use App\Models\User;
 use App\Services\Operations\TeamMemberActivityService;
 use App\Services\Refunds\DeskFirstWalletRefundCompletionGate;
+use App\Services\Refunds\DeskFirstWalletRefundInterruptedCompletionRecorder;
 use App\Services\Refunds\HardwareOrderRefundCaseGate;
 use App\Services\Refunds\RefundExecutionInputGuard;
 use App\Services\Refunds\RefundExecutorResolver;
@@ -38,6 +39,7 @@ class RefundRequestService
         private readonly DashboardBroadcastService $dashboardBroadcastService,
         private readonly WalletRefundDestinationResolver $walletRefundDestinations,
         private readonly DeskFirstWalletRefundCompletionGate $deskFirstWalletRefundCompletionGate,
+        private readonly DeskFirstWalletRefundInterruptedCompletionRecorder $deskFirstInterruptedCompletionRecorder,
         private readonly HardwareOrderRefundCaseGate $hardwareRefundCaseGate,
     ) {}
 
@@ -423,11 +425,22 @@ class RefundRequestService
 
         $data = RefundExecutionInputGuard::sanitizeForCompletion($lockedForExecution, $data);
 
-        $execution = $this->executorResolver->execute($lockedForExecution, $user, [
-            'reference_number' => $data['execution_reference_no'] ?? null,
-            'transaction_id' => $data['execution_transaction_id'] ?? null,
-            'remarks' => $data['execution_remarks'] ?? null,
-        ]);
+        try {
+            $execution = $this->executorResolver->execute($lockedForExecution, $user, [
+                'reference_number' => $data['execution_reference_no'] ?? null,
+                'transaction_id' => $data['execution_transaction_id'] ?? null,
+                'remarks' => $data['execution_remarks'] ?? null,
+            ]);
+        } catch (ValidationException $exception) {
+            $this->deskFirstInterruptedCompletionRecorder->recordIfApplicable(
+                $lockedForExecution,
+                $user,
+                $request,
+                $exception,
+            );
+
+            throw $exception;
+        }
 
         $this->deskFirstWalletRefundCompletionGate->assertMayComplete($lockedForExecution, $execution);
 
