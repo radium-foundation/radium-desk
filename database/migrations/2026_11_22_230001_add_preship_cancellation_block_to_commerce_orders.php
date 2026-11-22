@@ -28,7 +28,8 @@ return new class extends Migration
     {
         Schema::table('commerce_orders', function (Blueprint $table) {
             if (Schema::hasColumn('commerce_orders', 'pre_shipment_cancellation_request_id')) {
-                $table->dropConstrainedForeignId('pre_shipment_cancellation_request_id');
+                $table->dropForeign('co_preship_cancel_req_id_fk');
+                $table->dropColumn('pre_shipment_cancellation_request_id');
             }
             if (Schema::hasColumn('commerce_orders', 'hardware_fulfilment_blocked_at')) {
                 $table->dropColumn('hardware_fulfilment_blocked_at');
