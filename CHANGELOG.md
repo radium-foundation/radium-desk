@@ -1,5 +1,16 @@
 # Changelog
 
+## 4.1.112 — 2026-11-22 — Backup staging safety, inventory SSH fix, deploy rollback tooling (P-22-06 / P-22-14 / P-22-16 / P-22-17)
+
+- **Backup (P-22-14):** Shared `bin/lib/backup-staging-paths.sh` restricts `chmod`/`setfacl` on backup output parents to validated `BACKUP_STAGING_ROOT` only (prevents accidental hardening of `/tmp` or paths outside staging).
+- **Backup (P-22-14):** `ssh -n` on Cloud inventory/prune remote exec so bulk marker enumeration is not limited to a single path.
+- **Backup:** Runbook staging-path rules; central backup/recovery policy document (P-22-09).
+- **Deploy tooling (P-22-06):** Authorized KVM rollback validation for known-good release tags (`tools/lib/deploy-kvm-rollback.sh`, allowlist JSON).
+- **Tests (P-22-16 / P-22-17):** Backup shell regression harness includes staging-paths lib; deterministic BackupWatchdog PHPUnit time control.
+- **Migrations:** None.
+- Rollback target: **v4.1.111** / `5b9cf72a8`.
+- Prompts **P-22-06**, **P-22-14**, **P-22-16**, **P-22-17**; release prep **P-22-18**; PRs **#402–410**.
+
 ## 4.1.111 — 2026-11-21 — Desk-first refund recovery and ledger migration safety (P-21-10 / P-21-16)
 
 - **Refunds (desk-first):** Durable Central Wallet credit under refund `lockForUpdate()`; records **`refund.desk_first_spoke_audit_failed`** when spoke audit fails after credit commit (recovery UI shows last spoke error).
