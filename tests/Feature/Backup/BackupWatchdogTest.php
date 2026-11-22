@@ -21,6 +21,8 @@ class BackupWatchdogTest extends TestCase
 {
     use RefreshDatabase;
 
+    private const FROZEN_NOW = '2026-08-22T10:00:00Z';
+
     private string $stagingRoot;
 
     private string $statusPath;
@@ -47,10 +49,14 @@ class BackupWatchdogTest extends TestCase
 
         $this->enableTelegramNotifications();
         WatchdogCriticalAlertGate::clearDurableForTests();
+
+        Carbon::setTestNow(Carbon::parse(self::FROZEN_NOW));
     }
 
     protected function tearDown(): void
     {
+        Carbon::setTestNow();
+
         File::deleteDirectory($this->stagingRoot);
         Cache::flush();
 
@@ -134,11 +140,10 @@ class BackupWatchdogTest extends TestCase
         $this->artisan('watchdog:send-critical-alerts')->assertSuccessful();
         $this->assertSame(1, $this->sentBackupAlertCount());
 
-        Carbon::setTestNow(now()->addHour());
-        $freshBackupId = now()->utc()->format('Ymd\THis\Z');
+        Carbon::setTestNow(Carbon::parse(self::FROZEN_NOW)->addHour());
         $this->writeStatus([
             'outcome' => 'success',
-            'backup_id' => $freshBackupId,
+            'backup_id' => '20260822T103001Z',
             'phase' => 'cloud_uploaded',
             'error_summary' => null,
             'generated_at' => now()->toIso8601String(),
