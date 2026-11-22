@@ -31,6 +31,8 @@ class BackupWatchdogServiceTest extends TestCase
 
     protected function tearDown(): void
     {
+        Carbon::setTestNow();
+
         File::deleteDirectory($this->stagingRoot);
 
         parent::tearDown();
@@ -204,6 +206,98 @@ class BackupWatchdogServiceTest extends TestCase
     public function test_phpunit_without_status_file_does_not_emit_never_backed_up_stale_alert(): void
     {
         $this->assertSame([], app(BackupWatchdogService::class)->collectAlerts());
+    }
+
+    public function test_successful_backup_just_inside_stale_threshold_emits_no_stale_alert(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-08-23T04:29:59Z'));
+
+        $this->writeStatus([
+            'version' => 1,
+            'generated_at' => '2026-08-22T02:30:00Z',
+            'outcome' => 'success',
+            'exit_code' => 0,
+            'duration_seconds' => 120,
+            'lock_acquired' => true,
+            'cloud_upload_enabled' => true,
+            'backup_id' => '20260822T023001Z',
+            'phase' => 'cloud_uploaded',
+            'error_summary' => null,
+        ]);
+
+        $alerts = app(BackupWatchdogService::class)->collectAlerts();
+
+        $this->assertSame([], $alerts);
+    }
+
+    public function test_successful_backup_just_past_stale_threshold_emits_stale_alert(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-08-23T04:30:01Z'));
+
+        $this->writeStatus([
+            'version' => 1,
+            'generated_at' => '2026-08-22T02:30:00Z',
+            'outcome' => 'success',
+            'exit_code' => 0,
+            'duration_seconds' => 120,
+            'lock_acquired' => true,
+            'cloud_upload_enabled' => true,
+            'backup_id' => '20260822T023001Z',
+            'phase' => 'cloud_uploaded',
+            'error_summary' => null,
+        ]);
+
+        $alerts = app(BackupWatchdogService::class)->collectAlerts();
+
+        $this->assertCount(1, $alerts);
+        $this->assertSame('backup:stale', $alerts[0]->key);
+    }
+
+    public function test_stale_detection_falls_back_to_generated_at_when_backup_id_is_invalid(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-08-24T10:00:00Z'));
+
+        $this->writeStatus([
+            'version' => 1,
+            'generated_at' => '2026-08-22T02:30:00Z',
+            'outcome' => 'success',
+            'exit_code' => 0,
+            'duration_seconds' => 120,
+            'lock_acquired' => true,
+            'cloud_upload_enabled' => true,
+            'backup_id' => 'not-a-valid-backup-id',
+            'phase' => 'cloud_uploaded',
+            'error_summary' => null,
+        ]);
+
+        $alerts = app(BackupWatchdogService::class)->collectAlerts();
+
+        $this->assertCount(1, $alerts);
+        $this->assertSame('backup:stale', $alerts[0]->key);
+    }
+
+    public function test_stale_detection_reports_missing_success_timestamp(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-08-22T08:00:00Z'));
+
+        $this->writeStatus([
+            'version' => 1,
+            'generated_at' => '',
+            'outcome' => 'success',
+            'exit_code' => 0,
+            'duration_seconds' => 120,
+            'lock_acquired' => true,
+            'cloud_upload_enabled' => true,
+            'backup_id' => null,
+            'phase' => 'cloud_uploaded',
+            'error_summary' => null,
+        ]);
+
+        $alerts = app(BackupWatchdogService::class)->collectAlerts();
+
+        $this->assertCount(1, $alerts);
+        $this->assertSame('backup:stale', $alerts[0]->key);
+        $this->assertStringContainsString('No successful encrypted backup', $alerts[0]->message);
     }
 
     public function test_disabled_watchdog_returns_no_alerts(): void
