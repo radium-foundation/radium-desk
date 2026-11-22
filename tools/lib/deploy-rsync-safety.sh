@@ -188,6 +188,91 @@ deploy_kvm_rsync_remote_target() {
     printf '%s@%s:%s/' "$SSH_USER" "$SSH_HOST" "$REMOTE_PROJECT"
 }
 
+# Normalize a relative repo path from rsync output or TSV (trim; reject unsafe paths).
+deploy_rsync_normalize_rel_path() {
+    local raw="$1"
+    local path="$raw"
+
+    path="${path//$'\r'/}"
+    path="${path#"${path%%[![:space:]]*}"}"
+    path="${path%"${path##*[![:space:]]}"}"
+
+    if [[ -z "$path" ]]; then
+        return 1
+    fi
+
+    if [[ "$path" == /* ]]; then
+        print_error "Refusing absolute deletion path: ${path}"
+        return 1
+    fi
+
+    if [[ "$path" == *..* ]]; then
+        print_error "Refusing path traversal in deletion path: ${path}"
+        return 1
+    fi
+
+    if [[ "$path" == *$'\t'* ]]; then
+        print_error "Refusing tab character in deletion path: ${path}"
+        return 1
+    fi
+
+    path="${path#./}"
+    path="${path#/}"
+
+    if [[ -z "$path" ]]; then
+        return 1
+    fi
+
+    printf '%s' "$path"
+    return 0
+}
+
+deploy_rsync_rel_path_is_directory_marker() {
+    [[ "${1:-}" == */ ]]
+}
+
+deploy_rsync_strip_trailing_slash() {
+    local path="${1:-}"
+    while [[ "$path" == */ ]]; do
+        path="${path%/}"
+    done
+    printf '%s' "$path"
+}
+
+deploy_rsync_parse_classification_tsv_line() {
+    local line="$1"
+    local classification raw_path rel_path
+
+    line="${line//$'\r'/}"
+    [[ -z "${line//[[:space:]]/}" ]] && return 1
+
+    IFS=$'\t' read -r classification raw_path _ <<<"$line"
+    classification="${classification#"${classification%%[![:space:]]*}"}"
+    classification="${classification%"${classification##*[![:space:]]}"}"
+
+    if [[ -z "$classification" ]]; then
+        print_error "Classification TSV line missing classification field"
+        return 1
+    fi
+
+    case "$classification" in
+        expected | unexpected | protected) ;;
+        *)
+            print_error "Classification TSV has invalid classification: ${classification}"
+            return 1
+            ;;
+    esac
+
+    if ! rel_path="$(deploy_rsync_normalize_rel_path "$raw_path")"; then
+        print_error "Classification TSV has invalid path field: ${raw_path:-<empty>}"
+        return 1
+    fi
+
+    DEPLOY_RSYNC_PARSED_CLASSIFICATION="$classification"
+    DEPLOY_RSYNC_PARSED_REL_PATH="$rel_path"
+    return 0
+}
+
 # Parse rsync --itemize-changes dry-run output for paths rsync would delete.
 deploy_rsync_parse_deletion_paths() {
     local dry_run_log="$1"
@@ -195,6 +280,8 @@ deploy_rsync_parse_deletion_paths() {
     awk '
         /^\*deleting / {
             sub(/^\*deleting /, "")
+            gsub(/\r$/, "")
+            gsub(/^[ \t]+|[ \t]+$/, "")
             if ($0 != "") {
                 print $0
             }
@@ -236,8 +323,10 @@ deploy_rsync_classify_deletion_path() {
     local head_ref="$2"
     local previous_tag="${3:-}"
 
-    rel_path="${rel_path#./}"
-    rel_path="${rel_path#/}"
+    if ! rel_path="$(deploy_rsync_normalize_rel_path "$rel_path")"; then
+        printf 'protected'
+        return 0
+    fi
 
     if deploy_rsync_is_runtime_release_identity_path "$rel_path"; then
         printf 'protected'
@@ -419,36 +508,202 @@ deploy_rsync_write_inventory() {
     } >"${inventory_dir}/manifest-${stamp}.txt"
 }
 
+deploy_rsync_remote_path_absent() {
+    local rel_path="$1"
+    local stripped
+
+    stripped="$(deploy_rsync_strip_trailing_slash "$rel_path")"
+
+    if ssh_exec "test -e '${REMOTE_PROJECT}/${stripped}'"; then
+        return 1
+    fi
+
+    if ssh_exec "test -d '${REMOTE_PROJECT}/${stripped}'"; then
+        return 1
+    fi
+
+    return 0
+}
+
+deploy_rsync_remote_is_directory() {
+    local rel_path="$1"
+    local stripped
+
+    stripped="$(deploy_rsync_strip_trailing_slash "$rel_path")"
+    deploy_rsync_rel_path_is_directory_marker "$rel_path" && return 0
+    ssh_exec "test -d '${REMOTE_PROJECT}/${stripped}'"
+}
+
+deploy_rsync_remote_file_size() {
+    local abs_path="$1"
+    local size
+
+    size="$(ssh_exec "stat -c '%s' '${abs_path}'" 2>/dev/null || true)"
+    [[ -n "$size" && "$size" =~ ^[0-9]+$ ]] || return 1
+    printf '%s' "$size"
+    return 0
+}
+
+deploy_rsync_path_covered_by_directory_backup() {
+    local rel_path="$1"
+    local prefix backed
+
+    for backed in "${DEPLOY_RSYNC_BACKED_UP_DIRS[@]:-}"; do
+        [[ -z "$backed" ]] && continue
+        prefix="${backed%/}/"
+        if [[ "$rel_path" == "$backed" || "$rel_path" == "$prefix"* ]]; then
+            return 0
+        fi
+    done
+
+    return 1
+}
+
+deploy_rsync_record_directory_backup() {
+    local rel_path="$1"
+    local stripped
+
+    stripped="$(deploy_rsync_strip_trailing_slash "$rel_path")"
+    DEPLOY_RSYNC_BACKED_UP_DIRS+=("$stripped")
+}
+
+deploy_rsync_verify_remote_backup_file() {
+    local source_abs="$1"
+    local backup_abs="$2"
+    local source_size backup_size
+
+    if ! ssh_exec "test -f '${backup_abs}'"; then
+        print_error "Backup verification failed: expected regular file missing at ${backup_abs}"
+        return 1
+    fi
+
+    if ! ssh_exec "test ! -d '${backup_abs}'"; then
+        print_error "Backup verification failed: destination is a directory, expected file: ${backup_abs}"
+        return 1
+    fi
+
+    source_size="$(deploy_rsync_remote_file_size "$source_abs")" || {
+        print_error "Backup verification failed: could not read source size for ${source_abs}"
+        return 1
+    }
+    backup_size="$(deploy_rsync_remote_file_size "$backup_abs")" || {
+        print_error "Backup verification failed: could not read backup size for ${backup_abs}"
+        return 1
+    }
+
+    if [[ "$source_size" == "0" ]]; then
+        print_error "Backup verification failed: refusing zero-byte source file ${source_abs}"
+        return 1
+    fi
+
+    if [[ "$backup_size" != "$source_size" ]]; then
+        print_error "Backup verification failed: size mismatch for ${backup_abs} (backup=${backup_size}, source=${source_size})"
+        return 1
+    fi
+
+    return 0
+}
+
+deploy_rsync_verify_remote_backup_directory() {
+    local backup_abs="$1"
+
+    if ! ssh_exec "test -d '${backup_abs}'"; then
+        print_error "Backup verification failed: expected directory missing at ${backup_abs}"
+        return 1
+    fi
+
+    if ssh_exec "test -n \"\$(find '${backup_abs}' -mindepth 1 -print -quit 2>/dev/null)\""; then
+        return 0
+    fi
+
+    print_error "Backup verification failed: directory backup is empty at ${backup_abs}"
+    return 1
+}
+
 deploy_rsync_backup_remote_deletions() {
     local backup_dir="$1"
     local inventory_tsv="$2"
-    local rel_path
+    local line classification rel_path stripped source_abs backup_abs
+    local -a verified_payloads=()
+
+    DEPLOY_RSYNC_BACKED_UP_DIRS=()
 
     if [[ ! -s "$inventory_tsv" ]]; then
         return 0
     fi
 
-    ssh_exec "mkdir -p '${backup_dir}'"
+    ssh_exec "mkdir -p '${backup_dir}'" || {
+        print_error "Failed to create remote deletion backup directory: ${backup_dir}"
+        return 1
+    }
 
-    while IFS=$'\t' read -r _classification rel_path _; do
-        [[ -z "$rel_path" ]] && continue
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        [[ -z "${line//[[:space:]]/}" ]] && continue
+
+        if ! deploy_rsync_parse_classification_tsv_line "$line"; then
+            print_error "Invalid deletion classification record; refusing destructive rsync."
+            return 1
+        fi
+
+        classification="$DEPLOY_RSYNC_PARSED_CLASSIFICATION"
+        rel_path="$DEPLOY_RSYNC_PARSED_REL_PATH"
+
         if deploy_rsync_is_protected_path "$rel_path"; then
             continue
         fi
 
-        if ! ssh_exec "test -e '${REMOTE_PROJECT}/${rel_path}'"; then
-            print_warning "Skipping backup for missing remote path: ${rel_path}"
+        if deploy_rsync_path_covered_by_directory_backup "$rel_path"; then
             continue
         fi
 
-        if ! ssh_exec "mkdir -p '${backup_dir}/$(dirname "${rel_path}")' && cp -a '${REMOTE_PROJECT}/${rel_path}' '${backup_dir}/${rel_path}'"; then
-            print_error "Failed to back up remote path before deletion: ${rel_path}"
+        stripped="$(deploy_rsync_strip_trailing_slash "$rel_path")"
+        source_abs="${REMOTE_PROJECT}/${stripped}"
+        backup_abs="${backup_dir}/${stripped}"
+
+        if deploy_rsync_remote_path_absent "$rel_path"; then
+            print_warning "Remote path already absent (no backup required): ${rel_path}"
+            continue
+        fi
+
+        if deploy_rsync_remote_is_directory "$rel_path"; then
+            if ! ssh_exec "mkdir -p '${backup_dir}/$(dirname "${stripped}")' && rm -rf '${backup_abs}' && cp -a '${source_abs}' '${backup_abs}'"; then
+                print_error "Failed to back up remote directory before deletion: ${rel_path}"
+                return 1
+            fi
+            if ! deploy_rsync_verify_remote_backup_directory "$backup_abs"; then
+                return 1
+            fi
+            deploy_rsync_record_directory_backup "$rel_path"
+            verified_payloads+=("${stripped}/")
+            continue
+        fi
+
+        if ! ssh_exec "test -f '${source_abs}'"; then
+            print_error "Remote deletion backup blocked: path is not a regular file: ${rel_path}"
             return 1
         fi
+
+        if ! ssh_exec "mkdir -p '${backup_dir}/$(dirname "${stripped}")' && rm -f '${backup_abs}' && cp -a '${source_abs}' '${backup_abs}'"; then
+            print_error "Failed to back up remote file before deletion: ${rel_path}"
+            return 1
+        fi
+
+        if ! deploy_rsync_verify_remote_backup_file "$source_abs" "$backup_abs"; then
+            return 1
+        fi
+
+        verified_payloads+=("${stripped}")
     done < "$inventory_tsv"
 
-    if ! ssh_exec "cp '${backup_dir}/../deletion-classification-${DEPLOY_RSYNC_STAMP:-unknown}.tsv' '${backup_dir}/' 2>/dev/null || true"; then
-        :
+    if ((${#verified_payloads[@]} > 0)); then
+        {
+            printf '%s\n' "${verified_payloads[@]}"
+        } | ssh_exec "cat > '${backup_dir}/backup-verified-payloads.txt'"
+    fi
+
+    if [[ "${#verified_payloads[@]}" -eq 0 ]]; then
+        print_warning "No remote deletion payloads required backup (inventory empty or paths already absent)."
+        return 0
     fi
 
     print_success "Remote deletion backup completed: ${backup_dir}"
@@ -526,6 +781,11 @@ deploy_rsync_analyze_deletions() {
 
     while IFS= read -r path; do
         [[ -z "$path" ]] && continue
+        if ! path="$(deploy_rsync_normalize_rel_path "$path")"; then
+            print_error "Deletion dry-run produced an invalid path; refusing to continue."
+            rm -f "$dry_run_log" "$build_dry_log" "$classification_tsv"
+            return 1
+        fi
         classification="$(deploy_rsync_classify_deletion_path "$path" "$head_ref" "$previous_tag")"
         printf '%s\t%s\n' "$classification" "$path" >>"$classification_tsv"
         total=$((total + 1))
@@ -596,6 +856,11 @@ deploy_rsync_run_deletion_safety_gate() {
 
     while IFS= read -r path; do
         [[ -z "$path" ]] && continue
+        if ! path="$(deploy_rsync_normalize_rel_path "$path")"; then
+            print_error "Deletion dry-run produced an invalid path; refusing destructive sync."
+            rm -f "$dry_run_log" "$build_dry_log" "$classification_tsv"
+            return 1
+        fi
         classification="$(deploy_rsync_classify_deletion_path "$path" "$head_ref" "$previous_tag")"
         printf '%s\t%s\n' "$classification" "$path" >>"$classification_tsv"
         total=$((total + 1))
@@ -685,27 +950,115 @@ deploy_rsync_local_run_dry_run() {
     deploy_rsync_exec "${rsync_cmd[@]}" >"$output_file" 2>&1
 }
 
+deploy_rsync_local_path_absent() {
+    local dest_root="$1"
+    local rel_path="$2"
+    local stripped
+
+    stripped="$(deploy_rsync_strip_trailing_slash "$rel_path")"
+    [[ ! -e "${dest_root}/${stripped}" ]]
+}
+
+deploy_rsync_local_is_directory() {
+    local dest_root="$1"
+    local rel_path="$2"
+    local stripped
+
+    stripped="$(deploy_rsync_strip_trailing_slash "$rel_path")"
+    deploy_rsync_rel_path_is_directory_marker "$rel_path" && return 0
+    [[ -d "${dest_root}/${stripped}" ]]
+}
+
+deploy_rsync_local_file_size() {
+    local path="$1"
+    local size
+
+    [[ -f "$path" ]] || return 1
+    size="$(wc -c <"$path" | tr -d ' ')"
+    [[ "$size" =~ ^[0-9]+$ ]] || return 1
+    printf '%s' "$size"
+}
+
+deploy_rsync_verify_local_backup_file() {
+    local source_path="$1"
+    local backup_path="$2"
+    local source_size backup_size
+
+    [[ -f "$backup_path" ]] || return 1
+    [[ ! -d "$backup_path" ]] || return 1
+
+    source_size="$(deploy_rsync_local_file_size "$source_path")" || return 1
+    backup_size="$(deploy_rsync_local_file_size "$backup_path")" || return 1
+
+    [[ "$source_size" -gt 0 ]] || return 1
+    [[ "$backup_size" == "$source_size" ]] || return 1
+    return 0
+}
+
 deploy_rsync_local_backup_deletions() {
     local backup_dir="$1"
     local dest_root="$2"
     local inventory_tsv="$3"
-    local rel_path
+    local line classification rel_path stripped source_path backup_path
+    local -a verified_payloads=()
 
-    mkdir -p "$backup_dir"
+    DEPLOY_RSYNC_BACKED_UP_DIRS=()
+    mkdir -p "$backup_dir" || return 1
 
-    while IFS=$'\t' read -r _classification rel_path _; do
-        [[ -z "$rel_path" ]] && continue
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        [[ -z "${line//[[:space:]]/}" ]] && continue
+
+        if ! deploy_rsync_parse_classification_tsv_line "$line"; then
+            return 1
+        fi
+
+        rel_path="$DEPLOY_RSYNC_PARSED_REL_PATH"
+
         if deploy_rsync_is_protected_path "$rel_path"; then
             continue
         fi
-        if [[ ! -e "${dest_root}/${rel_path}" ]]; then
+
+        if deploy_rsync_path_covered_by_directory_backup "$rel_path"; then
             continue
         fi
-        mkdir -p "${backup_dir}/$(dirname "${rel_path}")"
-        if ! cp -a "${dest_root}/${rel_path}" "${backup_dir}/${rel_path}"; then
+
+        stripped="$(deploy_rsync_strip_trailing_slash "$rel_path")"
+        source_path="${dest_root}/${stripped}"
+        backup_path="${backup_dir}/${stripped}"
+
+        if deploy_rsync_local_path_absent "$dest_root" "$rel_path"; then
+            continue
+        fi
+
+        if deploy_rsync_local_is_directory "$dest_root" "$rel_path"; then
+            mkdir -p "${backup_dir}/$(dirname "${stripped}")" || return 1
+            rm -rf "$backup_path"
+            if ! cp -a "$source_path" "$backup_path"; then
+                return 1
+            fi
+            if ! find "$backup_path" -mindepth 1 -print -quit | grep -q .; then
+                return 1
+            fi
+            deploy_rsync_record_directory_backup "$rel_path"
+            verified_payloads+=("${stripped}/")
+            continue
+        fi
+
+        [[ -f "$source_path" ]] || return 1
+        mkdir -p "${backup_dir}/$(dirname "${stripped}")" || return 1
+        rm -f "$backup_path"
+        if ! cp -a "$source_path" "$backup_path"; then
             return 1
         fi
+        if ! deploy_rsync_verify_local_backup_file "$source_path" "$backup_path"; then
+            return 1
+        fi
+        verified_payloads+=("${stripped}")
     done < "$inventory_tsv"
+
+    if ((${#verified_payloads[@]} > 0)); then
+        printf '%s\n' "${verified_payloads[@]}" >"${backup_dir}/backup-verified-payloads.txt"
+    fi
 
     return 0
 }

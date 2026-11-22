@@ -267,4 +267,122 @@ test_i_kvm_remote_rsync_filter_argv_quoting() {
 test_h_kvm_staging_return_trap_under_nounset
 test_i_kvm_remote_rsync_filter_argv_quoting
 
+# --- P-22-23 fail-closed backup regression ---
+
+test_p2223_parse_deletion_leading_whitespace() {
+    local log="${TMP}/p2223-parse.log"
+    printf '*deleting   tools/lib/__pycache__/hostinger.pyc\r\n' >"$log"
+    local paths
+    paths="$(deploy_rsync_parse_deletion_paths "$log")"
+    echo "$paths" | grep -Fx 'tools/lib/__pycache__/hostinger.pyc' \
+        || fail "P-22-23 parse expected trimmed path, got: ${paths}"
+    pass "P-22-23 deletion parser trims leading whitespace and CRLF"
+}
+
+test_p2223_classification_tsv_leading_spaces() {
+    local line='unexpected	  tools/lib/__pycache__/hostinger_vps_preflight.cpython-314.pyc'
+
+    deploy_rsync_parse_classification_tsv_line "$line" \
+        || fail "P-22-23 TSV parse failed for legacy leading-space path"
+    [[ "$DEPLOY_RSYNC_PARSED_REL_PATH" == 'tools/lib/__pycache__/hostinger_vps_preflight.cpython-314.pyc' ]] \
+        || fail "P-22-23 TSV path not normalized"
+    pass "P-22-23 classification TSV trims leading spaces"
+}
+
+test_p2223_classification_tsv_trailing_crlf() {
+    local line=$'unexpected\ttools/foo.php   \r'
+
+    deploy_rsync_parse_classification_tsv_line "$line" || fail "P-22-23 trailing CRLF parse failed"
+    [[ "$DEPLOY_RSYNC_PARSED_REL_PATH" == 'tools/foo.php' ]] \
+        || fail "P-22-23 trailing whitespace not trimmed"
+    pass "P-22-23 classification TSV trims trailing whitespace"
+}
+
+test_p2223_local_backup_verifies_payload() {
+    local dest="${TMP}/p2223-dest" tsv="${TMP}/p2223.tsv" backup="${TMP}/p2223-backup"
+    mkdir -p "${dest}/tools/lib"
+    printf 'bytecode' >"${dest}/tools/lib/hostinger.pyc"
+    printf 'unexpected\t  tools/lib/hostinger.pyc\n' >"$tsv"
+
+    deploy_rsync_local_backup_deletions "$backup" "$dest" "$tsv" \
+        || fail "P-22-23 local backup failed"
+    [[ -f "${backup}/tools/lib/hostinger.pyc" ]] || fail "P-22-23 missing backup file"
+    [[ -f "${backup}/backup-verified-payloads.txt" ]] || fail "P-22-23 missing verified manifest"
+    pass "P-22-23 local backup verifies payload after TSV normalization"
+}
+
+test_p2223_zero_byte_backup_fails() {
+    local dest="${TMP}/p2223-z-dest"
+    mkdir -p "${dest}/tools"
+    : >"${dest}/tools/empty.pyc"
+
+    deploy_rsync_verify_local_backup_file "${dest}/tools/empty.pyc" "${dest}/tools/empty.pyc" \
+        && fail "P-22-23 zero-byte must fail verification"
+    pass "P-22-23 zero-byte payload fails verification"
+}
+
+test_p2223_directory_backup_dedupes_child() {
+    local dest="${TMP}/p2223-dir-dest" tsv="${TMP}/p2223-dir.tsv" backup="${TMP}/p2223-dir-backup"
+    mkdir -p "${dest}/tools/lib/__pycache__"
+    printf 'pyc' >"${dest}/tools/lib/__pycache__/hostinger.pyc"
+    {
+        printf 'unexpected\ttools/lib/__pycache__/\n'
+        printf 'unexpected\t  tools/lib/__pycache__/hostinger.pyc\n'
+    } >"$tsv"
+
+    deploy_rsync_local_backup_deletions "$backup" "$dest" "$tsv" \
+        || fail "P-22-23 directory backup failed"
+    [[ -d "${backup}/tools/lib/__pycache__" ]] || fail "P-22-23 missing directory backup"
+    pass "P-22-23 directory backup satisfies nested file inventory"
+}
+
+test_p2223_traversal_path_rejected() {
+    deploy_rsync_normalize_rel_path '../etc/passwd' >/dev/null 2>&1 \
+        && fail "P-22-23 traversal must be rejected"
+    pass "P-22-23 traversal paths rejected"
+}
+
+test_p2223_remote_backup_failure_blocks_live_rsync() {
+    local tsv="${TMP}/p2223-remote.tsv"
+    local backup_dir="/var/www/radium-desk/storage/app/backups/deploy-rsync-safety-P2223"
+    local live_rsync=0
+
+    printf 'unexpected\t tools/lib/example.pyc\n' >"$tsv"
+
+    ssh_exec() {
+        case "$1" in
+            *mkdir*) return 0 ;;
+            *'test -e'*) return 0 ;;
+            *'test -d'*) return 1 ;;
+            *'test -f'*) return 0 ;;
+            *cp\ -a*) return 1 ;;
+            *) return 0 ;;
+        esac
+    }
+
+    deploy_rsync_exec() {
+        if [[ " $* " == *" --dry-run "* ]]; then
+            command rsync "$@"
+            return $?
+        fi
+        live_rsync=1
+        return 1
+    }
+
+    if deploy_rsync_backup_remote_deletions "$backup_dir" "$tsv"; then
+        fail "P-22-23 remote backup must fail when copy fails"
+    fi
+    [[ "$live_rsync" -eq 0 ]] || fail "P-22-23 live rsync must not run after backup failure"
+    pass "P-22-23 backup failure blocks destructive rsync boundary"
+}
+
+test_p2223_parse_deletion_leading_whitespace
+test_p2223_classification_tsv_leading_spaces
+test_p2223_classification_tsv_trailing_crlf
+test_p2223_local_backup_verifies_payload
+test_p2223_zero_byte_backup_fails
+test_p2223_directory_backup_dedupes_child
+test_p2223_traversal_path_rejected
+test_p2223_remote_backup_failure_blocks_live_rsync
+
 echo "All deploy-rsync-safety local tests passed."
