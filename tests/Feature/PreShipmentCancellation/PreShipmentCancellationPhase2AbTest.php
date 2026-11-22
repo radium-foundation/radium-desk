@@ -22,6 +22,7 @@ use App\Services\HardwareFulfilment\HardwareFulfilmentCancellationGuard;
 use App\Services\PreShipmentCancellation\PreShipmentCancellationEligibilityService;
 use App\Services\PreShipmentCancellation\PreShipmentCancellationFeature;
 use App\Services\PreShipmentCancellation\PreShipmentCancellationFinanceService;
+use App\Services\PreShipmentCancellation\PreShipmentCancellationIncidentService;
 use App\Services\PreShipmentCancellation\PreShipmentCancellationRefundLinkService;
 use App\Services\PreShipmentCancellation\PreShipmentCancellationSubmitService;
 use Database\Seeders\RolePermissionSeeder;
@@ -261,6 +262,19 @@ class PreShipmentCancellationPhase2AbTest extends TestCase
             'cancellation_reason' => 'Should fail',
             'idempotency_key' => 'psc-off-'.$order->id,
         ]);
+    }
+
+    public function test_incident_close_retry_is_idempotent(): void
+    {
+        [$actor, $order] = $this->paidHardwareFixtures(orderId: 'RBP9007007');
+        $case = app(PreShipmentCancellationSubmitService::class)->submit($actor, $order, [
+            'cancellation_reason' => 'Retry incident sync.',
+            'idempotency_key' => 'psc-retry-inc-'.$order->id,
+        ]);
+
+        $retried = app(PreShipmentCancellationIncidentService::class)->retryClose($case, $actor);
+        $this->assertSame($case->service_case_incident_id, $retried->service_case_incident_id);
+        $this->assertSame(1, PreShipmentCancellationRequest::query()->count());
     }
 
     public function test_finance_approve_moves_split_case_from_review(): void

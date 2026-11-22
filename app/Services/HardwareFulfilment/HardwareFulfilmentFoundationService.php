@@ -10,6 +10,7 @@ use App\Models\Order;
 use App\Services\Assignment\HardwareOrderServiceCaseAssignmentCoordinator;
 use App\Services\ChannelIngest\Data\ChannelOrderIngestRequest;
 use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
@@ -31,69 +32,79 @@ class HardwareFulfilmentFoundationService
                 ->first();
         }
 
-        HardwareFulfilmentCancellationGuard::assertFulfilmentNotBlocked($order);
+        return DB::transaction(function () use ($order, $request): ?HardwareFulfilment {
+            $locked = CommerceOrder::query()->whereKey($order->id)->lockForUpdate()->firstOrFail();
 
-        if (! HardwareFulfilmentEligibility::shouldOpenRecord($request)) {
-            return HardwareFulfilment::query()
-                ->where('commerce_order_id', $order->id)
-                ->first();
-        }
-
-        $existing = HardwareFulfilment::query()
-            ->where('commerce_order_id', $order->id)
-            ->first();
-        if ($existing !== null) {
-            $this->fillMissingCorrelation($existing, $order, $request);
-            $this->paymentCorrelation->attachPendingEvidence($existing);
-
-            return $this->attemptReady($existing);
-        }
-
-        $link = $this->resolveCashfreeLink($request);
-        $this->persistSupportOrderId($order, $link['support_order_id']);
-
-        try {
-            $fulfilment = HardwareFulfilment::query()->create([
-                'commerce_order_id' => $order->id,
-                'channel' => $request->channel,
-                'source_type' => $request->sourceType->value,
-                'source_id' => $request->sourceId,
-                'idempotency_key' => $request->idempotencyKey(),
-                'state' => HardwareFulfilmentState::Ingested,
-                'support_order_id' => $link['support_order_id'] ?? $order->support_order_id,
-                'cashfree_payment_id' => $link['cashfree_payment_id'],
-                'payment_reference' => $request->paymentReference,
-                'retry_count' => 0,
-                'ingested_at' => now(),
-            ]);
-        } catch (UniqueConstraintViolationException) {
-            $raced = HardwareFulfilment::query()
-                ->where('commerce_order_id', $order->id)
-                ->first();
-            if ($raced !== null) {
-                $this->paymentCorrelation->attachPendingEvidence($raced);
-
-                return $this->attemptReady($raced);
+            if (HardwareFulfilmentEligibility::commerceOrderVoidsFulfilment($locked)) {
+                return HardwareFulfilment::query()
+                    ->where('commerce_order_id', $locked->id)
+                    ->first();
             }
 
-            return $raced;
-        }
+            HardwareFulfilmentCancellationGuard::assertFulfilmentNotBlocked($locked);
 
-        HardwareFulfilmentEvent::query()->create([
-            'hardware_fulfilment_id' => $fulfilment->id,
-            'from_state' => null,
-            'to_state' => HardwareFulfilmentState::Ingested,
-            'actor_type' => 'system',
-            'payload' => [
-                'reason' => 'channel_ingest',
-                'source_id' => $request->sourceId,
-            ],
-            'created_at' => now(),
-        ]);
+            if (! HardwareFulfilmentEligibility::shouldOpenRecord($request)) {
+                return HardwareFulfilment::query()
+                    ->where('commerce_order_id', $locked->id)
+                    ->first();
+            }
 
-        $this->paymentCorrelation->attachPendingEvidence($fulfilment);
+            $existing = HardwareFulfilment::query()
+                ->where('commerce_order_id', $locked->id)
+                ->first();
+            if ($existing !== null) {
+                $this->fillMissingCorrelation($existing, $locked, $request);
+                $this->paymentCorrelation->attachPendingEvidence($existing);
 
-        return $this->attemptReady($fulfilment);
+                return $this->attemptReady($existing);
+            }
+
+            $link = $this->resolveCashfreeLink($request);
+            $this->persistSupportOrderId($locked, $link['support_order_id']);
+
+            try {
+                $fulfilment = HardwareFulfilment::query()->create([
+                    'commerce_order_id' => $locked->id,
+                    'channel' => $request->channel,
+                    'source_type' => $request->sourceType->value,
+                    'source_id' => $request->sourceId,
+                    'idempotency_key' => $request->idempotencyKey(),
+                    'state' => HardwareFulfilmentState::Ingested,
+                    'support_order_id' => $link['support_order_id'] ?? $locked->support_order_id,
+                    'cashfree_payment_id' => $link['cashfree_payment_id'],
+                    'payment_reference' => $request->paymentReference,
+                    'retry_count' => 0,
+                    'ingested_at' => now(),
+                ]);
+            } catch (UniqueConstraintViolationException) {
+                $raced = HardwareFulfilment::query()
+                    ->where('commerce_order_id', $locked->id)
+                    ->first();
+                if ($raced !== null) {
+                    $this->paymentCorrelation->attachPendingEvidence($raced);
+
+                    return $this->attemptReady($raced);
+                }
+
+                return $raced;
+            }
+
+            HardwareFulfilmentEvent::query()->create([
+                'hardware_fulfilment_id' => $fulfilment->id,
+                'from_state' => null,
+                'to_state' => HardwareFulfilmentState::Ingested,
+                'actor_type' => 'system',
+                'payload' => [
+                    'reason' => 'channel_ingest',
+                    'source_id' => $request->sourceId,
+                ],
+                'created_at' => now(),
+            ]);
+
+            $this->paymentCorrelation->attachPendingEvidence($fulfilment);
+
+            return $this->attemptReady($fulfilment);
+        });
     }
 
     /**
@@ -129,8 +140,23 @@ class HardwareFulfilmentFoundationService
 
     private function openHardwareFulfilmentFromExistingCommerce(CommerceOrder $order, string $eventReason): HardwareFulfilment
     {
-        HardwareFulfilmentCancellationGuard::assertFulfilmentNotBlocked($order);
+        return DB::transaction(function () use ($order, $eventReason): HardwareFulfilment {
+            $locked = CommerceOrder::query()->whereKey($order->id)->lockForUpdate()->firstOrFail();
 
+            if (HardwareFulfilmentEligibility::commerceOrderVoidsFulfilment($locked)) {
+                return HardwareFulfilment::query()
+                    ->where('commerce_order_id', $locked->id)
+                    ->firstOrFail();
+            }
+
+            HardwareFulfilmentCancellationGuard::assertFulfilmentNotBlocked($locked);
+
+            return $this->openHardwareFulfilmentFromLockedCommerce($locked, $eventReason);
+        });
+    }
+
+    private function openHardwareFulfilmentFromLockedCommerce(CommerceOrder $order, string $eventReason): HardwareFulfilment
+    {
         $existing = HardwareFulfilment::query()
             ->where('commerce_order_id', $order->id)
             ->first();

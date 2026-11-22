@@ -1,0 +1,104 @@
+name: Pre-shipment cancellation MariaDB
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'app/**/PreShipmentCancellation/**'
+      - 'app/Services/HardwareFulfilment/HardwareFulfilmentCancellationGuard.php'
+      - 'app/Services/HardwareFulfilment/HardwareFulfilmentFoundationService.php'
+      - 'app/Services/HardwareFulfilment/HardwareFulfilmentEligibility.php'
+      - 'config/pre_shipment_cancellation.php'
+      - 'database/migrations/2026_11_22_230*.php'
+      - 'tests/Feature/PreShipmentCancellation/**'
+      - '.github/workflows/preship-cancellation-mariadb-ci.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'app/**/PreShipmentCancellation/**'
+      - 'config/pre_shipment_cancellation.php'
+      - 'database/migrations/2026_11_22_230*.php'
+      - 'tests/Feature/PreShipmentCancellation/**'
+      - '.github/workflows/preship-cancellation-mariadb-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  preship-cancel-mariadb:
+    runs-on: ubuntu-latest
+    env:
+      PRE_SHIPMENT_MARIADB_HOST: 127.0.0.1
+      PRE_SHIPMENT_MARIADB_PORT: 33118
+      PRE_SHIPMENT_MARIADB_DATABASE: radium_desk_preship_cancel_mariadb_test
+      PRE_SHIPMENT_MARIADB_USERNAME: rd_preship_test
+      PRE_SHIPMENT_MARIADB_PASSWORD: rd_preship_test_pw
+      PRE_SHIPMENT_CANCELLATION_ENABLED: 'false'
+      APP_ENV: testing
+
+    services:
+      mariadb:
+        image: mariadb:11.8
+        env:
+          MARIADB_ROOT_PASSWORD: root_pw
+          MARIADB_DATABASE: radium_desk_preship_cancel_mariadb_test
+          MARIADB_USER: rd_preship_test
+          MARIADB_PASSWORD: rd_preship_test_pw
+        ports:
+          - 33118:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+          tools: composer:v2
+          extensions: pdo_mysql, mbstring, xml, curl, intl
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Wait for MariaDB readiness
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 30); do
+            if mysqladmin ping -h 127.0.0.1 -P 33118 -u"$PRE_SHIPMENT_MARIADB_USERNAME" -p"$PRE_SHIPMENT_MARIADB_PASSWORD" --silent; then
+              mysql -h 127.0.0.1 -P 33118 -u"$PRE_SHIPMENT_MARIADB_USERNAME" -p"$PRE_SHIPMENT_MARIADB_PASSWORD" -e "SELECT VERSION();"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "MariaDB did not become ready in time" >&2
+          exit 1
+        env:
+          MYSQL_PWD: ${{ env.PRE_SHIPMENT_MARIADB_PASSWORD }}
+
+      - name: Engine version evidence
+        run: |
+          mysql -h 127.0.0.1 -P 33118 -u"$PRE_SHIPMENT_MARIADB_USERNAME" -p"$PRE_SHIPMENT_MARIADB_PASSWORD" -N -e "SELECT VERSION();" | tee /tmp/preship_mariadb_version.txt
+        env:
+          MYSQL_PWD: ${{ env.PRE_SHIPMENT_MARIADB_PASSWORD }}
+
+      - name: PHPUnit (pre-shipment MariaDB migration up/rollback/up)
+        run: |
+          ./vendor/bin/phpunit tests/Feature/PreShipmentCancellation/PreShipmentCancellationMariaDbMigrationTest.php
+
+      - name: PHPUnit (pre-shipment InnoDB cancel vs ingest race)
+        run: |
+          ./vendor/bin/phpunit tests/Feature/PreShipmentCancellation/PreShipmentCancellationIngestRaceMysqlConcurrencyTest.php
+
+      - name: PHPUnit (pre-shipment sqlite regression bundle)
+        run: |
+          ./vendor/bin/phpunit \
+            tests/Feature/PreShipmentCancellation/PreShipmentCancellationPhase2AbTest.php \
+            tests/Feature/PreShipmentCancellation/PreShipmentCancellationGapPathsTest.php \
+            tests/Feature/Refunds/HardwareOrderRefundCaseGateTest.php
