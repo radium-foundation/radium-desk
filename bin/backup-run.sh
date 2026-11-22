@@ -18,6 +18,9 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
+# shellcheck source=lib/backup-staging-paths.sh
+source "${ROOT}/bin/lib/backup-staging-paths.sh"
+
 MYSQLDUMP_BIN="${MYSQLDUMP_BIN:-$(command -v mysqldump || true)}"
 MYSQL_BIN="${MYSQL_BIN:-$(command -v mysql || true)}"
 GZIP_BIN="${GZIP_BIN:-$(command -v gzip || true)}"
@@ -333,18 +336,21 @@ write_manifest() {
 }
 
 ensure_staging_root() {
+    backup_staging_validate_root "$BACKUP_STAGING_ROOT" \
+        || die "BACKUP_STAGING_ROOT is not a valid staging directory"
+
     if [[ ! -d "$BACKUP_STAGING_ROOT" ]]; then
         mkdir -p "$BACKUP_STAGING_ROOT"
     fi
 
-    chmod 700 "$BACKUP_STAGING_ROOT" 2>/dev/null || true
+    backup_staging_chmod_700_if_under_root "$BACKUP_STAGING_ROOT" "$BACKUP_STAGING_ROOT" || true
 
     WORK_PARENT="${BACKUP_STAGING_ROOT}/work"
     mkdir -p "$WORK_PARENT"
-    chmod 700 "$WORK_PARENT" 2>/dev/null || true
+    backup_staging_chmod_700_if_under_root "$WORK_PARENT" "$BACKUP_STAGING_ROOT" || true
 
     mkdir -p "${BACKUP_STAGING_ROOT}/runs"
-    chmod 700 "${BACKUP_STAGING_ROOT}/runs" 2>/dev/null || true
+    backup_staging_chmod_700_if_under_root "${BACKUP_STAGING_ROOT}/runs" "$BACKUP_STAGING_ROOT" || true
 
     restore_staging_traversal_acls \
         || log "ERROR: staging traversal ACLs were not restored"
@@ -370,19 +376,22 @@ restore_staging_traversal_acls() {
         return 1
     fi
 
-    if ! setfacl -m "u:${acl_user}:--x,m:--x" "$BACKUP_STAGING_ROOT"; then
+    if ! backup_staging_setfacl_if_under_root "$BACKUP_STAGING_ROOT" "$BACKUP_STAGING_ROOT" \
+        -m "u:${acl_user}:--x,m:--x" "$BACKUP_STAGING_ROOT"; then
         log "ERROR: setfacl failed for staging root (exit $?)"
 
         return 1
     fi
 
-    if ! setfacl -m "u:${acl_user}:r-x,m:r-x" "$runs_root"; then
+    if ! backup_staging_setfacl_if_under_root "$runs_root" "$BACKUP_STAGING_ROOT" \
+        -m "u:${acl_user}:r-x,m:r-x" "$runs_root"; then
         log "ERROR: setfacl failed for runs directory (exit $?)"
 
         return 1
     fi
 
-    setfacl -d -m "u:${acl_user}:--x" "$runs_root" 2>/dev/null || true
+    backup_staging_setfacl_if_under_root "$runs_root" "$BACKUP_STAGING_ROOT" \
+        -d -m "u:${acl_user}:--x" "$runs_root" 2>/dev/null || true
 
     return 0
 }
@@ -395,6 +404,12 @@ restore_run_dir_traversal_acl() {
 
     if ! manifest_read_acl_enabled; then
         return 0
+    fi
+
+    if ! backup_staging_assert_path_under_root "$run_dir" "$BACKUP_STAGING_ROOT" "run directory"; then
+        log "ERROR: run directory ACL: path outside staging root"
+
+        return 1
     fi
 
     if [[ "$run_dir" != "${runs_root}/"* ]]; then
@@ -417,13 +432,15 @@ restore_run_dir_traversal_acl() {
         return 1
     fi
 
-    if ! setfacl -m "u:${acl_user}:r-x,m:r-x" "$run_dir"; then
+    if ! backup_staging_setfacl_if_under_root "$run_dir" "$BACKUP_STAGING_ROOT" \
+        -m "u:${acl_user}:r-x,m:r-x" "$run_dir"; then
         log "ERROR: setfacl failed for run directory (exit $?)"
 
         return 1
     fi
 
-    setfacl -d -m "u:${acl_user}:--x" "$run_dir" 2>/dev/null || true
+    backup_staging_setfacl_if_under_root "$run_dir" "$BACKUP_STAGING_ROOT" \
+        -d -m "u:${acl_user}:--x" "$run_dir" 2>/dev/null || true
 
     return 0
 }
@@ -705,7 +722,8 @@ apply_manifest_read_acl() {
     restore_run_dir_traversal_acl "$run_dir" \
         || log "ERROR: run directory traversal ACL was not restored"
 
-    if setfacl -m "u:${acl_user}:r,m:r" "$manifest_path"; then
+    if backup_staging_setfacl_if_under_root "$manifest_path" "$BACKUP_STAGING_ROOT" \
+        -m "u:${acl_user}:r,m:r" "$manifest_path"; then
         log "manifest read ACL applied for ${acl_user}"
 
         return 0
@@ -896,7 +914,8 @@ main() {
     fi
 
     mkdir -p "$final_run_dir"
-    chmod 700 "$final_run_dir"
+    backup_staging_chmod_700_if_under_root "$final_run_dir" "$BACKUP_STAGING_ROOT" \
+        || die "refusing to chmod run directory outside BACKUP_STAGING_ROOT"
 
     restore_run_dir_traversal_acl "$final_run_dir" \
         || log "ERROR: run directory traversal ACL was not restored"

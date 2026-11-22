@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+#
+# Test mock: log chmod invocations, then delegate to real chmod.
+#
+set -euo pipefail
+
+if [[ -n "${CHMOD_MOCK_LOG:-}" ]]; then
+    printf 'chmod %s\n' "$*" >>"$CHMOD_MOCK_LOG"
+fi
+
+if command -v /bin/chmod >/dev/null 2>&1; then
+    exec /bin/chmod "$@"
+fi
+
+exec chmod "$@"

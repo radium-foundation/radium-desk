@@ -13,6 +13,9 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
+# shellcheck source=lib/backup-staging-paths.sh
+source "${ROOT}/bin/lib/backup-staging-paths.sh"
+
 PHP_BIN="${PHP_BIN:-$(command -v php || true)}"
 BACKUP_STAGING_ROOT="${BACKUP_STAGING_ROOT:-/var/backups/radium-desk}"
 BACKUP_STATUS_PATH="${BACKUP_STATUS_PATH:-${BACKUP_STAGING_ROOT%/}/last-run-status.json}"
@@ -73,6 +76,10 @@ parse_args() {
 ensure_prerequisites() {
     [[ -n "$PHP_BIN" ]] || die "php is required to write backup status JSON"
     [[ -x "$BACKUP_RUN_SCRIPT" ]] || die "backup run script is not executable: ${BACKUP_RUN_SCRIPT}"
+    backup_staging_validate_root "$BACKUP_STAGING_ROOT" \
+        || die "BACKUP_STAGING_ROOT is not a valid staging directory"
+    backup_staging_assert_path_under_root "$BACKUP_STATUS_PATH" "$BACKUP_STAGING_ROOT" "status output" \
+        || die "BACKUP_STATUS_PATH must stay under BACKUP_STAGING_ROOT"
 }
 
 load_env_file() {
@@ -245,22 +252,25 @@ restore_staging_traversal_acls() {
     fi
 
     mkdir -p "$runs_root"
-    chmod 700 "$BACKUP_STAGING_ROOT" 2>/dev/null || true
-    chmod 700 "$runs_root" 2>/dev/null || true
+    backup_staging_chmod_700_if_under_root "$BACKUP_STAGING_ROOT" "$BACKUP_STAGING_ROOT" || true
+    backup_staging_chmod_700_if_under_root "$runs_root" "$BACKUP_STAGING_ROOT" || true
 
-    if ! setfacl -m "u:${acl_user}:--x,m:--x" "$BACKUP_STAGING_ROOT"; then
+    if ! backup_staging_setfacl_if_under_root "$BACKUP_STAGING_ROOT" "$BACKUP_STAGING_ROOT" \
+        -m "u:${acl_user}:--x,m:--x" "$BACKUP_STAGING_ROOT"; then
         log "ERROR: setfacl failed for staging root (exit $?)"
 
         return 1
     fi
 
-    if ! setfacl -m "u:${acl_user}:r-x,m:r-x" "$runs_root"; then
+    if ! backup_staging_setfacl_if_under_root "$runs_root" "$BACKUP_STAGING_ROOT" \
+        -m "u:${acl_user}:r-x,m:r-x" "$runs_root"; then
         log "ERROR: setfacl failed for runs directory (exit $?)"
 
         return 1
     fi
 
-    setfacl -d -m "u:${acl_user}:--x" "$runs_root" 2>/dev/null || true
+    backup_staging_setfacl_if_under_root "$runs_root" "$BACKUP_STAGING_ROOT" \
+        -d -m "u:${acl_user}:--x" "$runs_root" 2>/dev/null || true
 
     return 0
 }
@@ -294,7 +304,8 @@ apply_status_read_acl() {
     restore_staging_traversal_acls \
         || log "ERROR: staging traversal ACLs were not restored"
 
-    if setfacl -m "u:${acl_user}:r,m:r" "$status_path"; then
+    if backup_staging_setfacl_if_under_root "$status_path" "$BACKUP_STAGING_ROOT" \
+        -m "u:${acl_user}:r,m:r" "$status_path"; then
         log "status read ACL applied for ${acl_user}"
         return 0
     fi
@@ -402,8 +413,8 @@ write_status_json() {
     generated_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
     cloud_upload_enabled="$(cloud_upload_enabled_flag)"
 
-    mkdir -p "$(dirname "$output_path")"
-    chmod 700 "$(dirname "$output_path")" 2>/dev/null || true
+    backup_staging_prepare_output_parent "$output_path" "$BACKUP_STAGING_ROOT" \
+        || die "refusing to prepare status output outside BACKUP_STAGING_ROOT"
 
     export BACKUP_STATUS_GENERATED_AT="$generated_at"
     export BACKUP_STATUS_OUTCOME="$outcome"

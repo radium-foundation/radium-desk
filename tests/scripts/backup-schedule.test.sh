@@ -214,4 +214,13 @@ grep -q '"outcome": "success"' "$STATUS" || fail "skip-lock should run backup un
 rm -f "$MOCK_STATE"
 pass "outer flock compatibility via BACKUP_SCHEDULE_SKIP_LOCK"
 
+set +e
+BAD_LOG="$(run_schedule "$STAGING" "/tmp/p22-bad-last-run-status.json" "$LOCK" "$FIXTURES/success" 2>&1)"
+BAD_EC=$?
+set -e
+[[ "$BAD_EC" -ne 0 ]] || fail "schedule must fail when BACKUP_STATUS_PATH is outside staging root"
+echo "$BAD_LOG" | grep -qi 'must stay under BACKUP_STAGING_ROOT' \
+    || fail "expected staging containment error for /tmp status path"
+pass "rejects BACKUP_STATUS_PATH outside BACKUP_STAGING_ROOT"
+
 echo "All backup-schedule tests passed."
