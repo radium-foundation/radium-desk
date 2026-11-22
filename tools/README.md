@@ -45,13 +45,16 @@ export HOSTINGER_SNAPSHOT_GATE_ID=455368   # optional pin
 KVM has **no remote git reset**. **Authorized rollback** redeploys an **allowlisted** known-good **application build** via the same rsync path as `desk deploy`. It does **not** reverse MariaDB state, migration rows, Central Wallet ledger activity, or refunds.
 
 ```bash
-# Clean worktree at exact build (example v4.1.110 / 0f089eeeb), with CHANGELOG present:
+# Application source at exact build (example 0f089eeeb), tooling from current main:
+export DEPLOY_KVM_PROJECT_ROOT=/path/to/clean-checkout-at-0f089eeeb
 export DEPLOY_KVM_AUTHORIZED_ROLLBACK=1
 export DEPLOY_KVM_ROLLBACK_TARGET_VERSION=4.1.110
 export DEPLOY_KVM_ROLLBACK_OWNER_LEDGER_ID=RadiumDesk-P-22-06
 # Optional: DEPLOY_RUN_MIGRATIONS=0 (default) — rollback does not imply migrate:rollback
 ./tools/desk rollback --yes
 ```
+
+`DEPLOY_KVM_PROJECT_ROOT` selects the **rsynced application tree** (old release). Rollout validation uses the **deploy scripts** from the checkout where you invoke `desk` (keep that checkout on `main` ≥ P-22-06).
 
 Allowlist: [`tools/lib/kvm-authorized-rollback-targets.json`](lib/kvm-authorized-rollback-targets.json). Normal forward releases still require **HEAD = latest semver tag** (unchanged).
 
