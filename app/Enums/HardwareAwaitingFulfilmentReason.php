@@ -16,6 +16,7 @@ enum HardwareAwaitingFulfilmentReason: string
     case AwaitingHandoff = 'awaiting_handoff';
     case SplitTender = 'split_tender';
     case ProductMappingRequired = 'product_mapping_required';
+    case PreShipmentCancelled = 'preship_cancelled';
 
     public function label(): string
     {
@@ -32,6 +33,7 @@ enum HardwareAwaitingFulfilmentReason: string
             self::AwaitingHandoff => 'Awaiting handoff',
             self::SplitTender => 'Split-tender recovery required',
             self::ProductMappingRequired => 'Product mapping required',
+            self::PreShipmentCancelled => 'Pre-shipment cancellation committed',
         };
     }
 
@@ -50,6 +52,7 @@ enum HardwareAwaitingFulfilmentReason: string
             self::AwaitingHandoff => 'Awaiting handoff. Box still holds the product payload; Desk has no Commerce line yet.',
             self::SplitTender => 'Split-tender recovery required. Product identity exists at source; wallet plus Cashfree tenders are required before Desk ingest.',
             self::ProductMappingRequired => 'Product mapping required. An Owner-approved channel SKU map is missing for this model.',
+            self::PreShipmentCancelled => 'A committed Desk pre-shipment cancellation blocks fulfilment. Do not ingest or ship.',
         };
     }
 }

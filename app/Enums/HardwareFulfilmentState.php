@@ -16,6 +16,7 @@ enum HardwareFulfilmentState: string
     case Failed = 'failed';
     case RetryPending = 'retry_pending';
     case CancelledHistoricalDuplicate = 'cancelled_historical_duplicate';
+    case CancelledPreShipment = 'cancelled_pre_shipment';
 
     /**
      * Owner-locked hardware sequence. SERIALS_ALLOCATED precedes INVOICE_ISSUED.
@@ -49,13 +50,13 @@ enum HardwareFulfilmentState: string
             self::AwbAssigned => 6,
             self::Shipped => 7,
             self::Synced => 8,
-            self::Failed, self::RetryPending, self::CancelledHistoricalDuplicate => -1,
+            self::Failed, self::RetryPending, self::CancelledHistoricalDuplicate, self::CancelledPreShipment => -1,
         };
     }
 
     public function isTerminal(): bool
     {
-        return in_array($this, [self::Synced, self::CancelledHistoricalDuplicate], true);
+        return in_array($this, [self::Synced, self::CancelledHistoricalDuplicate, self::CancelledPreShipment], true);
     }
 
     /**
@@ -67,9 +68,9 @@ enum HardwareFulfilmentState: string
     public function allowedTransitions(): array
     {
         return match ($this) {
-            self::Paid => [self::Ingested, self::Failed, self::RetryPending],
-            self::Ingested => [self::ReadyForFulfilment, self::Failed, self::RetryPending],
-            self::ReadyForFulfilment => [self::SerialsAllocated, self::Failed, self::RetryPending],
+            self::Paid => [self::Ingested, self::CancelledPreShipment, self::Failed, self::RetryPending],
+            self::Ingested => [self::ReadyForFulfilment, self::CancelledPreShipment, self::Failed, self::RetryPending],
+            self::ReadyForFulfilment => [self::SerialsAllocated, self::CancelledPreShipment, self::Failed, self::RetryPending],
             self::SerialsAllocated => [self::InvoiceIssued, self::Failed, self::RetryPending, self::CancelledHistoricalDuplicate],
             self::InvoiceIssued => [self::ShipmentCreated, self::Failed, self::RetryPending, self::CancelledHistoricalDuplicate],
             self::ShipmentCreated => [self::AwbAssigned, self::Failed, self::RetryPending, self::CancelledHistoricalDuplicate],
@@ -79,6 +80,7 @@ enum HardwareFulfilmentState: string
             self::Failed => [self::RetryPending],
             self::RetryPending => [self::Failed],
             self::CancelledHistoricalDuplicate => [],
+            self::CancelledPreShipment => [],
         };
     }
 

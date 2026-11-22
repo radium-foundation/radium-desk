@@ -376,6 +376,10 @@ final class HardwareFulfilmentEligibility
             return true;
         }
 
+        if (HardwareFulfilmentCancellationGuard::isBlocked($order)) {
+            return true;
+        }
+
         return self::metadataShowsCancelled($order->metadata);
     }
 

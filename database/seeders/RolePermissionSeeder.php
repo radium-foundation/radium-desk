@@ -151,6 +151,18 @@ class RolePermissionSeeder extends Seeder
     /** Request wallet-to-OPM conversion for a succeeded allocation wallet credit (branch or central). */
     public const PERMISSION_RETURNS_CASES_ORDER_REFUND_ALLOCATION_OPM_CONVERSION_REQUEST = 'returns.cases.order_refund.allocation.opm_conversion.request';
 
+    public const PERMISSION_PRESHIP_CANCELLATIONS_SUBMIT = 'preship_cancellations.submit';
+
+    public const PERMISSION_PRESHIP_CANCELLATIONS_VIEW = 'preship_cancellations.view';
+
+    public const PERMISSION_PRESHIP_CANCELLATIONS_CENTRAL = 'preship_cancellations.central';
+
+    public const PERMISSION_PRESHIP_CANCELLATIONS_REVIEW = 'preship_cancellations.review';
+
+    public const PERMISSION_PRESHIP_CANCELLATIONS_APPROVE = 'preship_cancellations.approve';
+
+    public const PERMISSION_PRESHIP_CANCELLATIONS_REJECT = 'preship_cancellations.reject';
+
     /** Hybrid return/exchange management workspace (filters, workflow panels; no stock completion). */
     public const PERMISSION_RETURNS_CASES_MANAGE = 'returns.cases.manage';
 
@@ -526,6 +538,8 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_CASHBOOK_VIEW,
             self::PERMISSION_CASHBOOK_CREATE,
             ...self::INVENTORY_HARDWARE_PERMISSIONS,
+            self::PERMISSION_PRESHIP_CANCELLATIONS_SUBMIT,
+            self::PERMISSION_PRESHIP_CANCELLATIONS_VIEW,
         ],
         // Non-support staff: own attendance + leave only (profile/notifications are auth-gated).
         self::ROLE_EMPLOYEE => [
@@ -572,6 +586,12 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_REFUNDS_WALLET_OPM_CONVERSION_RECONCILE,
             self::PERMISSION_RETURNS_CASES_SERIAL_REPLACE,
             self::PERMISSION_RETURNS_CASES_MANAGE,
+            self::PERMISSION_PRESHIP_CANCELLATIONS_SUBMIT,
+            self::PERMISSION_PRESHIP_CANCELLATIONS_VIEW,
+            self::PERMISSION_PRESHIP_CANCELLATIONS_CENTRAL,
+            self::PERMISSION_PRESHIP_CANCELLATIONS_REVIEW,
+            self::PERMISSION_PRESHIP_CANCELLATIONS_APPROVE,
+            self::PERMISSION_PRESHIP_CANCELLATIONS_REJECT,
             self::PERMISSION_RETURNS_CASES_HYBRID_PLAN_REPLACEMENT,
             self::PERMISSION_RETURNS_CASES_HYBRID_APPROVE_BUSINESS,
             self::PERMISSION_RETURNS_CASES_HYBRID_APPROVE_GOODWILL,
@@ -656,6 +676,12 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_REFUNDS_WALLET_OPM_CONVERSION_RECONCILE,
             self::PERMISSION_RETURNS_CASES_SERIAL_REPLACE,
             self::PERMISSION_RETURNS_CASES_MANAGE,
+            self::PERMISSION_PRESHIP_CANCELLATIONS_SUBMIT,
+            self::PERMISSION_PRESHIP_CANCELLATIONS_VIEW,
+            self::PERMISSION_PRESHIP_CANCELLATIONS_CENTRAL,
+            self::PERMISSION_PRESHIP_CANCELLATIONS_REVIEW,
+            self::PERMISSION_PRESHIP_CANCELLATIONS_APPROVE,
+            self::PERMISSION_PRESHIP_CANCELLATIONS_REJECT,
             self::PERMISSION_RETURNS_CASES_HYBRID_PLAN_REPLACEMENT,
             self::PERMISSION_RETURNS_CASES_HYBRID_APPROVE_BUSINESS,
             self::PERMISSION_RETURNS_CASES_HYBRID_APPROVE_GOODWILL,
@@ -746,6 +772,12 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_REFUNDS_WALLET_OPM_CONVERSION_RECONCILE,
             self::PERMISSION_RETURNS_CASES_SERIAL_REPLACE,
             self::PERMISSION_RETURNS_CASES_MANAGE,
+            self::PERMISSION_PRESHIP_CANCELLATIONS_SUBMIT,
+            self::PERMISSION_PRESHIP_CANCELLATIONS_VIEW,
+            self::PERMISSION_PRESHIP_CANCELLATIONS_CENTRAL,
+            self::PERMISSION_PRESHIP_CANCELLATIONS_REVIEW,
+            self::PERMISSION_PRESHIP_CANCELLATIONS_APPROVE,
+            self::PERMISSION_PRESHIP_CANCELLATIONS_REJECT,
             self::PERMISSION_RETURNS_CASES_HYBRID_PLAN_REPLACEMENT,
             self::PERMISSION_RETURNS_CASES_HYBRID_APPROVE_BUSINESS,
             self::PERMISSION_RETURNS_CASES_HYBRID_APPROVE_GOODWILL,

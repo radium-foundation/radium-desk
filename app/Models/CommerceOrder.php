@@ -55,6 +55,8 @@ class CommerceOrder extends Model
         'statutory_auto_issue_approved_at',
         'statutory_auto_issue_approved_by',
         'support_order_id',
+        'hardware_fulfilment_blocked_at',
+        'pre_shipment_cancellation_request_id',
     ];
 
     protected function casts(): array
@@ -76,6 +78,7 @@ class CommerceOrder extends Model
             'paid_at' => 'datetime',
             'received_at' => 'datetime',
             'statutory_auto_issue_approved_at' => 'datetime',
+            'hardware_fulfilment_blocked_at' => 'datetime',
         ];
     }
 

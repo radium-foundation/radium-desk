@@ -5,6 +5,7 @@ namespace App\Services\HardwareFulfilment\Data;
 use App\Enums\HardwareAwaitingFulfilmentReason;
 use App\Models\CommerceOrder;
 use App\Models\Order;
+use App\Services\HardwareFulfilment\HardwareFulfilmentCancellationGuard;
 use App\Services\HardwareFulfilment\HardwareFulfilmentEligibility;
 use App\Services\HardwareFulfilment\HardwareSkuMapService;
 
@@ -28,6 +29,10 @@ final class HardwareAwaitingFulfilmentClassifier
 
         if (HardwareFulfilmentEligibility::isFrozenForFulfilment($sourceId, $commerce)) {
             return HardwareAwaitingFulfilmentReason::Frozen;
+        }
+
+        if ($commerce !== null && HardwareFulfilmentCancellationGuard::isBlocked($commerce)) {
+            return HardwareAwaitingFulfilmentReason::PreShipmentCancelled;
         }
 
         if (! $order->isCashfreeVerified()) {

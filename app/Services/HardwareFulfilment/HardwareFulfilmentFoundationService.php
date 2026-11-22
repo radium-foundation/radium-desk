@@ -31,6 +31,8 @@ class HardwareFulfilmentFoundationService
                 ->first();
         }
 
+        HardwareFulfilmentCancellationGuard::assertFulfilmentNotBlocked($order);
+
         if (! HardwareFulfilmentEligibility::shouldOpenRecord($request)) {
             return HardwareFulfilment::query()
                 ->where('commerce_order_id', $order->id)
@@ -127,6 +129,8 @@ class HardwareFulfilmentFoundationService
 
     private function openHardwareFulfilmentFromExistingCommerce(CommerceOrder $order, string $eventReason): HardwareFulfilment
     {
+        HardwareFulfilmentCancellationGuard::assertFulfilmentNotBlocked($order);
+
         $existing = HardwareFulfilment::query()
             ->where('commerce_order_id', $order->id)
             ->first();
