@@ -1,10 +1,11 @@
 # P-22-28 — Hardware paid-order pre-shipment cancellation (Phase 2) — design & threat model
 
-**Status:** Owner review draft (documentation only)  
+**Status:** Owner decisions **APPROVED** (P-22-29); design + threat model baseline  
 **Scope:** Hardware storefront order families **RBP**, **RDE**, **RDP** on `desk.radiumbox.com`  
-**Phase boundary:** **Phase 2** ends strictly **before AWB assignment / carrier shipment mutation**. **Phase 3** (Shiprocket `cancelOrders`, post-pickup) is out of scope for implementation authorized by this document.  
-**Baseline code:** `origin/main` @ **`9a7c004f68d02e6c04902f199258e95f08935c3b`** (production **v4.1.112** known-good per P-22-26)  
-**Evidence task:** P-22-27 gap audit; P-22-28 design (this file)  
+**Phase boundary:** **Phase 2** ends strictly **before AWB assignment / carrier shipment mutation**. **Phase 3** (Shiprocket `cancelOrders`, post-pickup) is **DEFERRED** until Phase 2 is deployed, smoke-verified, and Owner **known-good**.  
+**Baseline code:** `origin/main` @ **`fc90e304f`** (ledger/docs through P-22-28)  
+**Phase 2 State A+B spec:** [`desk-p22-29-phase2-ab-preship-cancel-implementation-spec.md`](desk-p22-29-phase2-ab-preship-cancel-implementation-spec.md)  
+**Evidence tasks:** P-22-27 audit; P-22-28 design; P-22-29 Owner sign-off + A+B spec  
 **Cursor ledger ID:** `bd0ac5bd-88f0-48e0-aacd-66eca9be9aef`
 
 ---
@@ -17,7 +18,18 @@ Implement hardware pre-shipment paid-order cancellation as a **durable, staged w
 
 **Phase 2 deliverable:** Agent submit → Finance review → fulfilment stop → (optional) serial release → statutory outcome → refund allocation → refund execution, with **zero** live Shiprocket writes.
 
-**Do not implement** until Owner approves: (1) split-tender refund policy for automatic vs manual legs, (2) statutory ordering (cancel before refund vs refund before cancel for hardware), (3) spoke metadata contract for cancellation markers, (4) whether to port or rewrite historical **p1711** WIP.
+---
+
+## 1.1 Owner decisions (approved 2026-11-22, P-22-29)
+
+| # | Topic | Decision |
+|---|--------|----------|
+| 1 | Tax before refund | Align with ReturnExchange: verified tax resolution before refund **completion** when a statutory invoice exists; no automatic tax cancellation in Phase 2 A+B |
+| 2 | Split-tender | Manual Finance review/execution; show Cashfree + Wallet breakdown and max refundable; never infer from `orders.payment_amount` alone |
+| 3 | ServiceCase | Auto close/cancel hardware-routed `Incident` on committed cancellation with immutable audit; retry on failure (`held_service_case`) |
+| 4 | Cancellation marker | Desk-owned durable record blocks all `ensureIngested*` / gap recovery / monitors; **no** spoke sync in Phase 2 |
+| 5 | P-17-11 / p1711 | **Clean-room** on `main`; port concepts only; do not merge dirty p1711 worktree |
+| 6 | Phase 3 Shiprocket | **DEFERRED** until Phase 2 known-good |
 
 ---
 
@@ -251,14 +263,9 @@ Existing suites to extend: `HardwareHistoricalDuplicateFulfilmentCancellationTes
 
 ---
 
-## 12. Owner decisions required (unresolved)
+## 12. Owner decisions (resolved — see §1.1)
 
-1. **Tax before refund** for hardware pre-ship (align with ReturnExchange?) — default **yes**.
-2. **Split-tender:** manual allocation only vs automated wallet credit for wallet-only orders.
-3. **ServiceCase** on cancel: auto-close vs leave open with audit.
-4. **Authoritative cancellation marker** schema (commerce vs support order vs both).
-5. **Port p1711 WIP** vs clean-room implementation on current `main`.
-6. **Phase 3** priority for Shiprocket `cancelOrders` after Phase 2 stable.
+All six decisions **APPROVED** in P-22-29. Implementation detail for States **A+B** only: [`desk-p22-29-phase2-ab-preship-cancel-implementation-spec.md`](desk-p22-29-phase2-ab-preship-cancel-implementation-spec.md).
 
 ---
 
