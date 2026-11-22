@@ -24,6 +24,8 @@ source "$SCRIPT_DIR/../lib/deploy-post-sync.sh"
 source "$SCRIPT_DIR/../lib/rip-pre-deploy-gate.sh"
 # shellcheck source=tools/lib/hostinger-snapshot-gate.sh
 source "$SCRIPT_DIR/../lib/hostinger-snapshot-gate.sh"
+# shellcheck source=tools/lib/deploy-kvm-rollback.sh
+source "$SCRIPT_DIR/../lib/deploy-kvm-rollback.sh"
 
 if [[ -n "${DEPLOY_KVM_BRANCH_OVERRIDE:-}" ]]; then
     DEFAULT_BRANCH="${DEPLOY_KVM_BRANCH_OVERRIDE}"
@@ -111,6 +113,11 @@ ensure_release_branch() {
 
 validate_release_metadata() {
     local latest_tag version changelog_pattern
+
+    if deploy_kvm_rollback_mode_enabled; then
+        validate_authorized_rollback_release_metadata
+        return 0
+    fi
 
     if [[ "${DEPLOY_KVM_UAT_SKIP_RELEASE_TAG:-0}" == "1" ]]; then
         print_warning "UAT deploy: skipping exact release-tag gate (DEPLOY_KVM_UAT_SKIP_RELEASE_TAG=1)"
@@ -336,7 +343,11 @@ main() {
     print_warning "KVM deploy preflight (${SSH_USER}@${SSH_HOST}:${REMOTE_PROJECT})..."
 
     ensure_clean_working_tree
-    ensure_release_branch
+    if deploy_kvm_rollback_mode_enabled; then
+        ensure_rollback_deploy_branch
+    else
+        ensure_release_branch
+    fi
     verify_hardware_dashboard_contract
     verify_ready_queue_contract
 

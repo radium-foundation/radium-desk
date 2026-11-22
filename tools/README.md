@@ -40,6 +40,21 @@ export HOSTINGER_SNAPSHOT_GATE_ID=455368   # optional pin
 
 `deploy-kvm.sh` runs **initial** gate after the RIP pre-deploy check and a **final** re-verify immediately before rsync. Default **`HOSTINGER_SNAPSHOT_GATE=0`** — not production protection; Tier A without the gate emits an explicit warning. Manual check: `./tools/desk hostinger-vps-snapshot-gate --json`. See `docs/P-14-16-hostinger-snapshot-deployment-gate-design.md` and `docs/P-14-17-hostinger-snapshot-verify-gate.md`.
 
+### Authorized KVM application rollback (P-22-06)
+
+KVM has **no remote git reset**. **Authorized rollback** redeploys an **allowlisted** known-good **application build** via the same rsync path as `desk deploy`. It does **not** reverse MariaDB state, migration rows, Central Wallet ledger activity, or refunds.
+
+```bash
+# Clean worktree at exact build (example v4.1.110 / 0f089eeeb), with CHANGELOG present:
+export DEPLOY_KVM_AUTHORIZED_ROLLBACK=1
+export DEPLOY_KVM_ROLLBACK_TARGET_VERSION=4.1.110
+export DEPLOY_KVM_ROLLBACK_OWNER_LEDGER_ID=RadiumDesk-P-22-06
+# Optional: DEPLOY_RUN_MIGRATIONS=0 (default) — rollback does not imply migrate:rollback
+./tools/desk rollback --yes
+```
+
+Allowlist: [`tools/lib/kvm-authorized-rollback-targets.json`](lib/kvm-authorized-rollback-targets.json). Normal forward releases still require **HEAD = latest semver tag** (unchanged).
+
 ## Configuration
 
 Edit [`config.sh`](config.sh) before first use. **KVM connection** (`SSH_*`, `REMOTE_PROJECT`, `PHP_BIN`, `DEPLOY_MODE`) targets current production. **`LEGACY_REMOTE_PUBLIC`** and related `INDEX_*` / `SCHEDULE_RUN_WRAPPER` values are **legacy shared-hosting** settings used only by **`desk deploy-legacy`**.

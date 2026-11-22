@@ -25,10 +25,14 @@ desk_deploy() {
 
 desk_rollback() {
     if [[ "${DEPLOY_MODE:-}" == "kvm" ]]; then
-        printf 'desk rollback is disabled when DEPLOY_MODE=kvm.\n' >&2
-        printf 'Remote Git rollback is not available on KVM.\n' >&2
-        printf 'Future KVM rollback will redeploy a known-good release/tag through the KVM deployment flow.\n' >&2
-        printf 'To recover now, manually redeploy a known-good tag with: desk deploy\n' >&2
+        if [[ "${DEPLOY_KVM_AUTHORIZED_ROLLBACK:-0}" == "1" ]]; then
+            exec "$TOOLS_DIR/commands/deploy-kvm.sh" "$@"
+        fi
+        printf 'KVM rollback is not remote git reset.\n' >&2
+        printf 'Authorized application rollback redeploys a known-good build via deploy-kvm.sh.\n' >&2
+        printf 'Set DEPLOY_KVM_AUTHORIZED_ROLLBACK=1, DEPLOY_KVM_ROLLBACK_TARGET_VERSION, and DEPLOY_KVM_ROLLBACK_OWNER_LEDGER_ID,\n' >&2
+        printf 'checkout the exact allowlisted build, then: desk rollback --yes\n' >&2
+        printf 'See tools/README.md — Authorized KVM rollback.\n' >&2
         exit 1
     fi
 
@@ -117,7 +121,7 @@ Usage:
   desk cache          Clear and rebuild remote Laravel caches
   desk hostinger-vps-preflight  Read-only Hostinger VPS API preflight (GET only)
   desk hostinger-vps-snapshot-gate  Verify-only Hostinger snapshot deploy gate (GET only)
-  desk rollback       Unavailable on KVM (future: tag redeploy rollback)
+  desk rollback       KVM: authorized known-good redeploy only (see README)
   desk rollback-legacy Legacy shared-hosting rollback (remote git reset)
 
 Deployment routing:
