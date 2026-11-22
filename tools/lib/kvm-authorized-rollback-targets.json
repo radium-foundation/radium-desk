@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "description": "Immutable known-good application rollback targets for authorized KVM redeploy only. Does not reverse database or financial state.",
+  "targets": [
+    {
+      "version": "4.1.110",
+      "build": "0f089eeeb",
+      "notes": "Production baseline before v4.1.111 (P-21-03 closed-refund guard)"
+    }
+  ]
+}
