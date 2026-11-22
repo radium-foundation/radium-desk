@@ -13,10 +13,12 @@ return new class extends Migration
                 $table->timestamp('hardware_fulfilment_blocked_at')->nullable()->after('support_order_id');
             }
             if (! Schema::hasColumn('commerce_orders', 'pre_shipment_cancellation_request_id')) {
-                $table->foreignId('pre_shipment_cancellation_request_id')
+                $table->unsignedBigInteger('pre_shipment_cancellation_request_id')
                     ->nullable()
-                    ->after('hardware_fulfilment_blocked_at')
-                    ->constrained('pre_shipment_cancellation_requests')
+                    ->after('hardware_fulfilment_blocked_at');
+                $table->foreign('pre_shipment_cancellation_request_id', 'co_preship_cancel_req_id_fk')
+                    ->references('id')
+                    ->on('pre_shipment_cancellation_requests')
                     ->nullOnDelete();
             }
         });

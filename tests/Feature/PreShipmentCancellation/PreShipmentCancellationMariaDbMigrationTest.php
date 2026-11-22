@@ -33,7 +33,7 @@ class PreShipmentCancellationMariaDbMigrationTest extends TestCase
         $this->assertTableExists($pdo, 'pre_shipment_cancellation_requests');
         $this->assertColumnExists($pdo, 'commerce_orders', 'hardware_fulfilment_blocked_at');
         $this->assertColumnExists($pdo, 'commerce_orders', 'pre_shipment_cancellation_request_id');
-        $this->assertIndexExists($pdo, 'pre_shipment_cancellation_requests', 'pre_shipment_cancellation_requests_reference_no_unique');
+        $this->assertIndexExists($pdo, 'pre_shipment_cancellation_requests', 'psc_req_reference_no_uq');
         $this->assertForeignKeyOnColumnExists($pdo, 'pre_shipment_cancellation_requests', 'order_id');
 
         $this->runArtisanRollback(self::MIGRATION_BLOCK);
