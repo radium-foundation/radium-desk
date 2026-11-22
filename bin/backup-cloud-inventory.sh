@@ -13,6 +13,9 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
+# shellcheck source=lib/backup-staging-paths.sh
+source "${ROOT}/bin/lib/backup-staging-paths.sh"
+
 SSH_BIN="${SSH_BIN:-$(command -v ssh || true)}"
 PHP_BIN="${PHP_BIN:-$(command -v php || true)}"
 BACKUP_STAGING_ROOT="${BACKUP_STAGING_ROOT:-/var/backups/radium-desk}"
@@ -94,27 +97,30 @@ restore_staging_traversal_acls() {
         return 1
     fi
 
-    if ! setfacl -m "u:${acl_user}:--x,m:--x" "$BACKUP_STAGING_ROOT"; then
+    if ! backup_staging_setfacl_if_under_root "$BACKUP_STAGING_ROOT" "$BACKUP_STAGING_ROOT" \
+        -m "u:${acl_user}:--x,m:--x" "$BACKUP_STAGING_ROOT"; then
         log "ERROR: setfacl failed for staging root (exit $?)"
 
         return 1
     fi
 
-    if ! setfacl -m "u:${acl_user}:r-x,m:r-x" "$runs_root"; then
+    if ! backup_staging_setfacl_if_under_root "$runs_root" "$BACKUP_STAGING_ROOT" \
+        -m "u:${acl_user}:r-x,m:r-x" "$runs_root"; then
         log "ERROR: setfacl failed for runs directory (exit $?)"
 
         return 1
     fi
 
-    setfacl -d -m "u:${acl_user}:--x" "$runs_root" 2>/dev/null || true
+    backup_staging_setfacl_if_under_root "$runs_root" "$BACKUP_STAGING_ROOT" \
+        -d -m "u:${acl_user}:--x" "$runs_root" 2>/dev/null || true
 
     return 0
 }
 
 ensure_staging_layout_for_acl() {
     mkdir -p "${BACKUP_STAGING_ROOT}/runs"
-    chmod 700 "$BACKUP_STAGING_ROOT" 2>/dev/null || true
-    chmod 700 "${BACKUP_STAGING_ROOT}/runs" 2>/dev/null || true
+    backup_staging_chmod_700_if_under_root "$BACKUP_STAGING_ROOT" "$BACKUP_STAGING_ROOT" || true
+    backup_staging_chmod_700_if_under_root "${BACKUP_STAGING_ROOT}/runs" "$BACKUP_STAGING_ROOT" || true
 }
 
 detect_date_flavor() {
@@ -213,6 +219,8 @@ resolve_inventory_path() {
     if path_has_unsafe_chars "$BACKUP_CLOUD_INVENTORY_PATH"; then
         die "inventory output path contains unsupported characters"
     fi
+    backup_staging_assert_path_under_root "$BACKUP_CLOUD_INVENTORY_PATH" "$BACKUP_STAGING_ROOT" "inventory output" \
+        || die "BACKUP_CLOUD_INVENTORY_PATH must stay under BACKUP_STAGING_ROOT"
 }
 
 remote_ssh_target() {
@@ -222,6 +230,7 @@ remote_ssh_target() {
 remote_ssh_exec() {
     local remote_command="$1"
     local -a ssh_args=(
+        -n
         -p "$BACKUP_CLOUD_SSH_PORT"
         -o BatchMode=yes
         -o StrictHostKeyChecking=accept-new
@@ -559,8 +568,8 @@ write_inventory_json() {
     local generated_at
     generated_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
-    mkdir -p "$(dirname "$output_path")"
-    chmod 700 "$(dirname "$output_path")" 2>/dev/null || true
+    backup_staging_prepare_output_parent "$output_path" "$BACKUP_STAGING_ROOT" \
+        || die "refusing to prepare inventory output outside BACKUP_STAGING_ROOT"
 
     export BACKUP_INVENTORY_GENERATED_AT="$generated_at"
     export BACKUP_INVENTORY_OUTPUT="$temp_path"
@@ -646,7 +655,8 @@ apply_inventory_read_acl() {
     restore_staging_traversal_acls \
         || log "ERROR: staging traversal ACLs were not restored"
 
-    if setfacl -m "u:${acl_user}:r,m:r" "$inventory_path"; then
+    if backup_staging_setfacl_if_under_root "$inventory_path" "$BACKUP_STAGING_ROOT" \
+        -m "u:${acl_user}:r,m:r" "$inventory_path"; then
         log "inventory read ACL applied for ${acl_user}"
         return 0
     fi
@@ -658,6 +668,8 @@ apply_inventory_read_acl() {
 main() {
     parse_args "$@"
     detect_date_flavor
+    backup_staging_validate_root "$BACKUP_STAGING_ROOT" \
+        || die "BACKUP_STAGING_ROOT is not a valid staging directory"
     resolve_cloud_config
     resolve_inventory_path
 

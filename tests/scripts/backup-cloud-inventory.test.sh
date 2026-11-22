@@ -115,29 +115,77 @@ run_inventory() {
 }
 
 REMOTE="$(mktemp -d "${TMPDIR:-/tmp}/radium-backup-inventory-remote-XXXXXX")"
-OUTPUT="$(mktemp "${TMPDIR:-/tmp}/radium-backup-inventory-out-XXXXXX").json"
-trap 'rm -rf "$REMOTE"; rm -f "$OUTPUT"' EXIT
+STAGING="$(mktemp -d "${TMPDIR:-/tmp}/radium-backup-inventory-staging-XXXXXX")"
+OUTPUT="${STAGING}/cloud-inventory.json"
+trap 'rm -rf "$REMOTE" "$STAGING"' EXIT
 
 create_completed_backup "$REMOTE" "20260818T185214Z"
 create_completed_backup "$REMOTE" "20260820T083001Z"
 mkdir -p "$(backup_dir "$REMOTE" "20260819T120000Z")"
 printf '{}' >"$(backup_dir "$REMOTE" "20260819T120000Z")/manifest.json"
 
-run_inventory "$REMOTE" "$OUTPUT" BACKUP_MANIFEST_ACL_ENABLED=false
+OUTPUT_LOG="$(mktemp "${TMPDIR:-/tmp}/radium-backup-inventory-log-XXXXXX")"
+run_inventory "$REMOTE" "$OUTPUT" BACKUP_MANIFEST_ACL_ENABLED=false 2>"$OUTPUT_LOG"
 
 [[ -f "$OUTPUT" ]] || fail "inventory output file missing"
 
 php "$ROOT/tests/scripts/validate-backup-cloud-inventory.php" "$OUTPUT" || fail "inventory JSON validation failed"
 
+ENTRY_COUNT="$(php -r 'echo count(json_decode(file_get_contents($argv[1]), true)["entries"] ?? []);' "$OUTPUT")"
+[[ "$ENTRY_COUNT" -eq 2 ]] || fail "expected 2 completed backups in inventory, got ${ENTRY_COUNT}"
+grep -q 'missing-upload-complete' "$OUTPUT_LOG" || fail "expected incomplete backup to be skipped"
 pass "writes sanitized inventory JSON with completed backups only"
+
+# Regression: ssh -n prevents OpenSSH from consuming the here-string that feeds classify loop.
+BULK_REMOTE="$(mktemp -d "${TMPDIR:-/tmp}/radium-backup-inventory-bulk-XXXXXX")"
+BULK_STAGING="$(mktemp -d "${TMPDIR:-/tmp}/radium-backup-inventory-bulk-staging-XXXXXX")"
+BULK_OUTPUT="${BULK_STAGING}/cloud-inventory.json"
+BULK_EXPECT=30
+day=1
+while [[ "$day" -le "$BULK_EXPECT" ]]; do
+    backup_id="$(printf '202611%02dT%02d0001Z' "$day" $((day % 24)))"
+    create_completed_backup "$BULK_REMOTE" "$backup_id"
+    day=$((day + 1))
+done
+# Invalid fixtures: bad checksum, malformed marker, malformed path (must not count as completed).
+BAD_SHA_ID="20261115T120001Z"
+create_completed_backup "$BULK_REMOTE" "$BAD_SHA_ID"
+php -r '
+    $dir = $argv[1];
+    $raw = json_decode(file_get_contents($dir . "/upload-complete.json"), true);
+    $raw["manifest_sha256"] = str_repeat("0", 64);
+    file_put_contents($dir . "/upload-complete.json", json_encode($raw, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+' "$(backup_dir "$BULK_REMOTE" "$BAD_SHA_ID")"
+mkdir -p "$(backup_dir "$BULK_REMOTE" "20261116T120001Z")"
+printf 'not-json' >"$(backup_dir "$BULK_REMOTE" "20261116T120001Z")/upload-complete.json"
+mkdir -p "$BULK_REMOTE/2026/11/17/not-a-valid-id"
+printf '{}' >"$BULK_REMOTE/2026/11/17/not-a-valid-id/upload-complete.json"
+
+run_inventory "$BULK_REMOTE" "$BULK_OUTPUT" BACKUP_MANIFEST_ACL_ENABLED=false >/dev/null
+BULK_COUNT="$(php -r 'echo count(json_decode(file_get_contents($argv[1]), true)["entries"] ?? []);' "$BULK_OUTPUT")"
+[[ "$BULK_COUNT" -eq "$BULK_EXPECT" ]] \
+    || fail "bulk inventory expected ${BULK_EXPECT} completed entries, got ${BULK_COUNT}"
+
+SPACE_ROOT="$BULK_REMOTE/with spaces/backup-root"
+set +e
+SPACE_LOG="$(BACKUP_CLOUD_REMOTE_ROOT="$SPACE_ROOT" env PATH="$FIXTURES:$PATH" SSH_BIN=ssh \
+    BACKUP_STAGING_ROOT="$(dirname "$BULK_OUTPUT")" BACKUP_CLOUD_INVENTORY_PATH="$BULK_OUTPUT" \
+    BACKUP_CLOUD_SSH_HOST=mockhost BACKUP_CLOUD_SSH_USER=mockuser BACKUP_CLOUD_SSH_PORT=22 \
+    BACKUP_MANIFEST_ACL_ENABLED=false "$ROOT/bin/backup-cloud-inventory.sh" 2>&1)"
+SPACE_STATUS=$?
+set -e
+[[ "$SPACE_STATUS" -ne 0 ]] || echo "$SPACE_LOG" | grep -qi 'unsupported characters' \
+    || fail "path with spaces must be rejected safely"
+pass "enumerates many completion markers without ssh stdin loop regression"
+rm -rf "$BULK_REMOTE" "$BULK_STAGING" 2>/dev/null || true
+rm -f "$OUTPUT_LOG"
 
 grep -q 'remote_path' "$OUTPUT" && fail "inventory must not contain remote_path"
 grep -q '\.gpg' "$OUTPUT" && fail "inventory must not contain encrypted artifact names"
 grep -q 'mockhost' "$OUTPUT" && fail "inventory must not contain ssh host"
 pass "inventory excludes sensitive fields"
 
-STAGING="$(dirname "$OUTPUT")"
-ACL_STAGING="$(mktemp -d "${TMPDIR:-/tmp}/radium-backup-inventory-staging-XXXXXX")"
+ACL_STAGING="$(mktemp -d "${TMPDIR:-/tmp}/radium-backup-inventory-acl-staging-XXXXXX")"
 SETFACL_LOG="$(mktemp "${TMPDIR:-/tmp}/radium-backup-inventory-setfacl-XXXXXX")"
 ACL_OUTPUT="$(run_inventory "$REMOTE" "${ACL_STAGING}/cloud-inventory.json" BACKUP_MANIFEST_ACL_ENABLED=true SETFACL_MOCK_LOG="$SETFACL_LOG" 2>&1)"
 echo "$ACL_OUTPUT" | grep -F 'inventory read ACL applied for ravi' >/dev/null \
@@ -147,5 +195,24 @@ pass "inventory applies staging traversal ACLs before index read ACL"
 
 rm -f "$SETFACL_LOG"
 rm -rf "$ACL_STAGING"
+
+set +e
+TMP_BAD="$(mktemp "${TMPDIR:-/tmp}/radium-inv-bad-XXXXXX").json"
+GUARD_LOG="$(
+    env PATH="$FIXTURES:$PATH" SSH_BIN=ssh \
+        BACKUP_STAGING_ROOT="$STAGING" \
+        BACKUP_CLOUD_INVENTORY_PATH="$TMP_BAD" \
+        BACKUP_CLOUD_REMOTE_ROOT="$REMOTE" \
+        BACKUP_CLOUD_SSH_HOST=mockhost BACKUP_CLOUD_SSH_USER=mockuser BACKUP_CLOUD_SSH_PORT=22 \
+        BACKUP_MANIFEST_ACL_ENABLED=false \
+        "$ROOT/bin/backup-cloud-inventory.sh" 2>&1
+)"
+GUARD_EC=$?
+set -e
+rm -f "$TMP_BAD"
+[[ "$GUARD_EC" -ne 0 ]] || fail "inventory must fail when output path is outside staging root"
+echo "$GUARD_LOG" | grep -qi 'must stay under BACKUP_STAGING_ROOT' \
+    || fail "expected staging containment error for /tmp output path"
+pass "rejects BACKUP_CLOUD_INVENTORY_PATH outside BACKUP_STAGING_ROOT"
 
 echo "All backup-cloud-inventory tests passed."

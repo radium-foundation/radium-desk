@@ -6,9 +6,14 @@ set -euo pipefail
 
 host=""
 command=""
+use_stdin=1
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
+        -n)
+            use_stdin=0
+            shift
+            ;;
         -p|-i|-o)
             shift 2
             ;;
@@ -35,5 +40,9 @@ done
     echo "mock ssh: missing remote command" >&2
     exit 1
 }
+
+if [[ "$use_stdin" -eq 1 ]]; then
+  cat >/dev/null || true
+fi
 
 bash -c "$command"

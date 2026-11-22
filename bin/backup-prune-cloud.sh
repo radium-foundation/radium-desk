@@ -246,6 +246,7 @@ remote_ssh_target() {
 remote_ssh_exec() {
     local remote_command="$1"
     local -a ssh_args=(
+        -n
         -p "$BACKUP_CLOUD_SSH_PORT"
         -o BatchMode=yes
         -o StrictHostKeyChecking=accept-new

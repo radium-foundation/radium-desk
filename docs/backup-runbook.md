@@ -358,6 +358,18 @@ sudo bash -c 'set -a; source /root/.radium-backup.env; set +a; ./bin/backup-clou
 
 Recommended after successful Cloud uploads or on a short ops schedule so the Desk table stays current.
 
+### Staging path safety (P-22-14)
+
+Permission and ACL hardening applies **only** under the canonical backup staging root (`BACKUP_STAGING_ROOT`, production default **`/var/backups/radium-desk`** — confirm against `/root/.radium-backup.env` on KVM).
+
+| Rule | Detail |
+|------|--------|
+| **`BACKUP_CLOUD_INVENTORY_PATH`** | Must stay **under** `BACKUP_STAGING_ROOT` (default `{staging}/cloud-inventory.json`). **Never** point at `/tmp` or paths outside staging on production. |
+| **`BACKUP_STATUS_PATH`** | Must stay **under** `BACKUP_STAGING_ROOT` (default `{staging}/last-run-status.json`). |
+| **Diagnostics on KVM** | Do **not** override inventory or status output to `/tmp/p2210-*.json` or similar — that previously triggered `chmod 700` on **`/tmp`** via parent-directory preparation (P-22-11/P-22-13). Use approved staging paths only. |
+| **Permission changes** | Scripts refuse `chmod` / `setfacl` on parents outside the validated staging root. |
+| **Cloud enumeration** | Inventory and prune use **`ssh -n`** so SSH does not consume the backup path list during classification (P-22-10). |
+
 ---
 
 ## How to restore (manual)
@@ -490,6 +502,7 @@ bash tests/scripts/backup-run.test.sh
 bash tests/scripts/backup-schedule.test.sh
 bash tests/scripts/backup-prune-cloud.test.sh
 bash tests/scripts/backup-cloud-inventory.test.sh
+bash tests/scripts/backup-staging-paths.test.sh
 php artisan test --filter=BackupWatchdog
 ```
 
