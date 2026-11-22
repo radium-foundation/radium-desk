@@ -43,8 +43,9 @@ command -v php >/dev/null 2>&1 || fail "php is required for tests"
 create_test_project() {
     local dir
     dir="$(mktemp -d "${TMPDIR:-/tmp}/radium-backup-test-XXXXXX")"
-    mkdir -p "$dir/bin" "$dir/storage/app/google" "$dir/storage/app/private"
+    mkdir -p "$dir/bin/lib" "$dir/storage/app/google" "$dir/storage/app/private"
     cp "$ROOT/bin/backup-run.sh" "$dir/bin/backup-run.sh"
+    cp "$ROOT/bin/lib/backup-staging-paths.sh" "$dir/bin/lib/backup-staging-paths.sh"
     chmod +x "$dir/bin/backup-run.sh"
 
     printf '%s\n' \
