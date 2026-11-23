@@ -96,6 +96,8 @@ use App\Http\Controllers\Pos\UpiIntentController as PosUpiIntentController;
 use App\Http\Controllers\Pos\UpiPaymentVerificationController as PosUpiPaymentVerificationController;
 use App\Http\Controllers\PosReturnRefundRequestController;
 use App\Http\Controllers\PresenceHeartbeatController;
+use App\Http\Controllers\PreShipmentCancellationFinanceController;
+use App\Http\Controllers\PreShipmentCancellationRequestController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Purchasing\GoodsReceiptController as PurchasingGoodsReceiptController;
 use App\Http\Controllers\Purchasing\PurchaseOrderController as PurchasingPurchaseOrderController;
@@ -355,6 +357,25 @@ Route::middleware(['auth', 'active'])->group(function () {
     Route::post('refunds/{refund}/reroute-execution-method', [RefundRequestController::class, 'rerouteExecutionMethod'])
         ->name('refunds.reroute-execution-method');
     Route::resource('refunds', RefundRequestController::class)->except(['edit', 'update']);
+
+    Route::middleware(['preship_cancellation.enabled'])->group(function (): void {
+        Route::get('pre-shipment-cancellations/central-queue', [PreShipmentCancellationFinanceController::class, 'index'])
+            ->name('pre-shipment-cancellations.central-queue');
+        Route::post('pre-shipment-cancellations/{pre_shipment_cancellation}/finance-approve', [PreShipmentCancellationFinanceController::class, 'approve'])
+            ->name('pre-shipment-cancellations.finance-approve');
+        Route::post('pre-shipment-cancellations/{pre_shipment_cancellation}/finance-reject', [PreShipmentCancellationFinanceController::class, 'reject'])
+            ->name('pre-shipment-cancellations.finance-reject');
+        Route::post('pre-shipment-cancellations/{pre_shipment_cancellation}/link-refund', [PreShipmentCancellationFinanceController::class, 'linkRefund'])
+            ->name('pre-shipment-cancellations.link-refund');
+        Route::post('pre-shipment-cancellations/{pre_shipment_cancellation}/retry-incident', [PreShipmentCancellationFinanceController::class, 'dispatchIncidentRetry'])
+            ->name('pre-shipment-cancellations.retry-incident');
+        Route::get('orders/{order}/pre-shipment-cancellations/create', [PreShipmentCancellationRequestController::class, 'create'])
+            ->name('orders.pre-shipment-cancellations.create');
+        Route::post('orders/{order}/pre-shipment-cancellations', [PreShipmentCancellationRequestController::class, 'store'])
+            ->name('orders.pre-shipment-cancellations.store');
+        Route::get('pre-shipment-cancellations/{pre_shipment_cancellation}', [PreShipmentCancellationRequestController::class, 'show'])
+            ->name('pre-shipment-cancellations.show');
+    });
 
     Route::get('return-cases/central-queue', [ReturnExchangeCaseCentralQueueController::class, 'index'])
         ->name('return-cases.central-queue');

@@ -1,6 +1,9 @@
+# P-23-13: MariaDB incident-retry concurrency step wired on PR #419
 name: Pre-shipment cancellation MariaDB
 
 on:
+  workflow_dispatch:
+
   pull_request:
     branches:
       - main
@@ -96,9 +99,17 @@ jobs:
         run: |
           ./vendor/bin/phpunit tests/Feature/PreShipmentCancellation/PreShipmentCancellationIngestRaceMysqlConcurrencyTest.php
 
+      - name: PHPUnit (pre-shipment InnoDB incident retry concurrency)
+        run: |
+          ./vendor/bin/phpunit tests/Feature/PreShipmentCancellation/PreShipmentCancellationIncidentRetryMysqlConcurrencyTest.php
+
       - name: PHPUnit (pre-shipment sqlite regression bundle)
         run: |
           ./vendor/bin/phpunit \
             tests/Feature/PreShipmentCancellation/PreShipmentCancellationPhase2AbTest.php \
             tests/Feature/PreShipmentCancellation/PreShipmentCancellationGapPathsTest.php \
+            tests/Feature/PreShipmentCancellation/PreShipmentCancellationOperatorHttpTest.php \
+            tests/Feature/PreShipmentCancellation/PreShipmentCancellationIncidentRetryIdempotencyTest.php \
+            tests/Feature/PreShipmentCancellation/PreShipmentCancellationCloseIncidentJobTest.php \
+            tests/Feature/PreShipmentCancellation/PreShipmentCancellationRouteSecurityTest.php \
             tests/Feature/Refunds/HardwareOrderRefundCaseGateTest.php

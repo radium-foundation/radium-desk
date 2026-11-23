@@ -7,6 +7,7 @@ use App\CentralWallet\Infrastructure\Jobs\ExpireActiveReservationsJob;
 use App\CentralWallet\Infrastructure\Jobs\PurgeExpiredIdempotencyRecordsJob;
 use App\CentralWallet\Infrastructure\Jobs\ReconciliationDailyJob;
 use App\Enums\QueueWorkerMode;
+use App\Http\Middleware\EnsurePreShipmentCancellationEnabled;
 use App\Http\Middleware\EnsureUserIsActive;
 use App\Http\Middleware\TrackTeamMemberActivity;
 use App\Infrastructure\Queue\QueueRouting;
@@ -39,6 +40,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'central_wallet.enabled' => EnsureCentralWalletApiEnabled::class,
             'central_wallet.auth' => AuthenticateCentralWalletIntegration::class,
             'central_wallet.correlation' => AssignCentralWalletCorrelationId::class,
+            'preship_cancellation.enabled' => EnsurePreShipmentCancellationEnabled::class,
         ]);
 
         $middleware->appendToGroup('web', TrackTeamMemberActivity::class);

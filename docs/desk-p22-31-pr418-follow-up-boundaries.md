@@ -7,11 +7,11 @@
 - Feature flag `PRE_SHIPMENT_CANCELLATION_ENABLED` default **false**.
 - MariaDB migration rehearsal CI + InnoDB concurrency + gap-path regressions (P-22-31).
 
-## Deferred to P-22-32 (explicit — not in PR #418)
+## Delivered in P-23-01 (post–PR #418 merge)
 
 | Item | Notes |
 |------|--------|
-| Operator HTTP UI and routes | Workspace/Finance surfaces for queue, review, approve, reject. |
-| Async Incident retry queue job | e.g. `preship-cancel-close-incident` outbox worker; **retryClose** remains synchronous fallback. |
+| Operator HTTP UI and routes | Gated middleware + policy; order create/show; Finance central queue; approve/reject/link-refund. |
+| Async Incident retry queue job | Job identity **`preship-cancel-close-incident`**; dispatched to **`critical`** queue (`QueueRouting::critical()`). See `docs/desk-p23-02-preship-incident-queue-wiring.md`. |
 
-Owner merge of PR #418 does **not** authorize P-22-32 work without a separate task.
+Feature flag default remains **`PRE_SHIPMENT_CANCELLATION_ENABLED=false`**. State C/D still excluded.

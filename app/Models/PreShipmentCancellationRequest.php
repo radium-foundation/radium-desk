@@ -97,4 +97,14 @@ class PreShipmentCancellationRequest extends Model
     {
         return $this->belongsTo(Incident::class, 'service_case_incident_id');
     }
+
+    public function submittedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'submitted_by_user_id');
+    }
+
+    public function reviewedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'reviewed_by_user_id');
+    }
 }

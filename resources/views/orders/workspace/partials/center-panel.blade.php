@@ -47,6 +47,14 @@
                         <span class="visually-hidden">Create Ticket</span>
                     </a>
                 @endcan
+                @if (\App\Support\PreShipmentCancellation\PreShipmentCancellationAccess::canSubmit(auth()->user()))
+                    <a href="{{ route('orders.pre-shipment-cancellations.create', $order) }}"
+                       class="order-workspace-sticky-btn"
+                       title="Pre-shipment cancellation">
+                        <i class="bi bi-x-circle" aria-hidden="true"></i>
+                        <span class="visually-hidden">Pre-shipment cancel</span>
+                    </a>
+                @endif
             </div>
         </div>
     </div>
