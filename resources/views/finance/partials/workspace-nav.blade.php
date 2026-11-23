@@ -5,6 +5,7 @@
 @php
     use App\Models\RefundRequest;
     use App\Support\Finance\FinanceAccess;
+    use App\Support\PreShipmentCancellation\PreShipmentCancellationAccess;
     use Database\Seeders\RolePermissionSeeder;
     use Illuminate\Support\Facades\Gate;
 
@@ -60,6 +61,11 @@
             'label' => 'Refunds',
             'url' => route('refunds.index'),
             'visible' => Gate::check('viewAny', RefundRequest::class),
+        ],
+        'preship_cancellations' => [
+            'label' => 'Pre-ship cancel',
+            'url' => route('pre-shipment-cancellations.central-queue'),
+            'visible' => PreShipmentCancellationAccess::canViewCentral($user),
         ],
         'ca_monthly_report' => [
             'label' => 'Sales Report',

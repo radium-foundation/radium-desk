@@ -8,6 +8,7 @@ use App\Enums\PreShipmentCancellationServiceCaseSyncStatus;
 use App\Enums\PreShipmentCancellationShipmentVerification;
 use App\Enums\PreShipmentCancellationStatus;
 use App\Enums\PreShipmentEligibilityFailureCode;
+use App\Jobs\PreShipmentCancellation\ClosePreShipmentCancellationIncidentJob;
 use App\Models\CommerceOrder;
 use App\Models\HardwareFulfilment;
 use App\Models\Order;
@@ -66,7 +67,7 @@ final class PreShipmentCancellationSubmitService
         }
 
         try {
-            return DB::transaction(function () use ($actor, $order, $payload, $assessment, $commerce, $breakdown, $requested): PreShipmentCancellationRequest {
+            $case = DB::transaction(function () use ($actor, $order, $payload, $assessment, $commerce, $breakdown, $requested): PreShipmentCancellationRequest {
                 $lockedOrder = Order::query()->whereKey($order->id)->lockForUpdate()->firstOrFail();
                 $lockedCommerce = null;
                 if ($commerce !== null) {
@@ -182,6 +183,10 @@ final class PreShipmentCancellationSubmitService
 
                 return $request->fresh() ?? $request;
             });
+
+            $this->dispatchIncidentRetryIfNeeded($case, $actor->id);
+
+            return $case;
         } catch (UniqueConstraintViolationException) {
             $prior = PreShipmentCancellationRequest::query()
                 ->where('idempotency_key', (string) $payload['idempotency_key'])
@@ -193,6 +198,19 @@ final class PreShipmentCancellationSubmitService
             throw ValidationException::withMessages([
                 'idempotency_key' => 'A cancellation case already exists for this order.',
             ]);
+        }
+    }
+
+    private function dispatchIncidentRetryIfNeeded(PreShipmentCancellationRequest $case, int $actorUserId): void
+    {
+        if ($case->service_case_sync_status === PreShipmentCancellationServiceCaseSyncStatus::Succeeded
+            || $case->service_case_sync_status === PreShipmentCancellationServiceCaseSyncStatus::NotApplicable) {
+            return;
+        }
+
+        if ($case->service_case_sync_status === PreShipmentCancellationServiceCaseSyncStatus::Failed
+            || $case->service_case_sync_status === PreShipmentCancellationServiceCaseSyncStatus::Pending) {
+            ClosePreShipmentCancellationIncidentJob::dispatch($case->id, $actorUserId);
         }
     }
 
