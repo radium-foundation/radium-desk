@@ -789,6 +789,180 @@ class HardwareFulfilmentOperationalWorkflowTest extends TestCase
         $this->assertSame(0, ShipmentEvent::query()->where('activity', 'manifest_generated')->count());
     }
 
+    public function test_manifest_reconciles_pickup_from_pickup_queued_track_without_local_timestamp(): void
+    {
+        $fulfilment = $this->awbFulfilment('RDE2487001');
+        $shipment = Shipment::query()->firstOrFail();
+        $awb = (string) $shipment->awb;
+
+        $this->actingAs($this->admin)
+            ->post(route('inventory.hardware-fulfilments.label.store', $fulfilment->fresh()))
+            ->assertRedirect()
+            ->assertSessionHas('status', 'Shipping label generated.');
+
+        $shipment->refresh()->forceFill([
+            'pickup_requested_at' => null,
+            'provider_track_status' => 'Pickup Generated',
+            'provider_track_normalized' => 'pickup_queued',
+        ])->save();
+
+        $pickupsBeforeManifest = $this->fake->pickups;
+        $this->fake->trackByAwbQueue = [
+            FakeShiprocketGateway::pickupGeneratedTrack($awb),
+        ];
+
+        $this->actingAs($this->admin)
+            ->post(route('inventory.hardware-fulfilments.manifest.store', $fulfilment->fresh()))
+            ->assertRedirect()
+            ->assertSessionHas('status', 'Manifest generated.');
+
+        $shipment = $shipment->fresh();
+        $this->assertNotNull($shipment->pickup_requested_at);
+        $this->assertNotNull($shipment->manifest_url);
+        $this->assertSame($pickupsBeforeManifest, $this->fake->pickups);
+        $this->assertSame(1, $this->fake->manifests);
+        $this->assertTrue(
+            HardwareFulfilmentEvent::query()
+                ->where('hardware_fulfilment_id', $fulfilment->id)
+                ->where('payload->reason', 'hardware_pickup_reconciled_provider_advanced')
+                ->exists()
+        );
+    }
+
+    public function test_repeated_manifest_after_reconciliation_does_not_duplicate_pickup_events(): void
+    {
+        $fulfilment = $this->awbFulfilment('RDE2487002');
+        $shipment = Shipment::query()->firstOrFail();
+        $awb = (string) $shipment->awb;
+
+        $this->actingAs($this->admin)
+            ->post(route('inventory.hardware-fulfilments.label.store', $fulfilment->fresh()))
+            ->assertRedirect();
+
+        $shipment->refresh()->forceFill([
+            'pickup_requested_at' => null,
+            'provider_track_status' => 'Pickup Generated',
+            'provider_track_normalized' => 'pickup_queued',
+        ])->save();
+
+        $this->fake->trackByAwbQueue = [
+            FakeShiprocketGateway::pickupGeneratedTrack($awb),
+            FakeShiprocketGateway::pickupGeneratedTrack($awb),
+        ];
+
+        $this->actingAs($this->admin)
+            ->post(route('inventory.hardware-fulfilments.manifest.store', $fulfilment->fresh()))
+            ->assertRedirect();
+
+        $requestedAt = $shipment->fresh()->pickup_requested_at?->toDateTimeString();
+        $reconcileEvents = HardwareFulfilmentEvent::query()
+            ->where('hardware_fulfilment_id', $fulfilment->id)
+            ->where('payload->reason', 'hardware_pickup_reconciled_provider_advanced')
+            ->count();
+
+        $this->actingAs($this->admin)
+            ->post(route('inventory.hardware-fulfilments.manifest.store', $fulfilment->fresh()))
+            ->assertRedirect();
+
+        $this->assertSame($requestedAt, $shipment->fresh()->pickup_requested_at?->toDateTimeString());
+        $this->assertSame($reconcileEvents, HardwareFulfilmentEvent::query()
+            ->where('hardware_fulfilment_id', $fulfilment->id)
+            ->where('payload->reason', 'hardware_pickup_reconciled_provider_advanced')
+            ->count());
+    }
+
+    public function test_manifest_fails_closed_when_provider_tracking_not_advanced_and_pickup_not_requested(): void
+    {
+        $fulfilment = $this->awbFulfilment('RDE2487003');
+        $shipment = Shipment::query()->firstOrFail();
+        $awb = (string) $shipment->awb;
+
+        $this->actingAs($this->admin)
+            ->post(route('inventory.hardware-fulfilments.label.store', $fulfilment->fresh()))
+            ->assertRedirect();
+
+        $shipment->refresh()->forceFill([
+            'pickup_requested_at' => null,
+            'provider_track_status' => 'AWB Assigned',
+            'provider_track_normalized' => 'unknown',
+        ])->save();
+
+        $this->fake->trackByAwbQueue = [
+            FakeShiprocketGateway::awbAssignedTrack($awb),
+        ];
+
+        $this->actingAs($this->admin)
+            ->from(route('inventory.hardware-fulfilments.show', $fulfilment))
+            ->post(route('inventory.hardware-fulfilments.manifest.store', $fulfilment->fresh()))
+            ->assertRedirect(route('inventory.hardware-fulfilments.show', $fulfilment))
+            ->assertSessionHasErrors('shipping');
+
+        $this->assertNull($shipment->fresh()->pickup_requested_at);
+        $this->assertNull($shipment->fresh()->manifest_url);
+        $this->assertSame(0, $this->fake->manifests);
+    }
+
+    public function test_awb_assign_syncs_pickup_when_provider_reports_pickup_generated(): void
+    {
+        $fulfilment = $this->selectTestCourier($this->invoicedFulfilment('RDE2487004', 'DELHI-RETAIL'), $this->admin);
+        $this->actingAs($this->admin)
+            ->post(route('inventory.hardware-fulfilments.shipment.store', $fulfilment))
+            ->assertRedirect();
+
+        $shipment = Shipment::query()->firstOrFail();
+        $this->fake->seedAwb(
+            (string) $shipment->external_shipment_id,
+            'AWB-RBP2487-CLASS',
+            '15084',
+            'Delhivery_Surface',
+        );
+        $this->fake->trackByAwbQueue = [
+            FakeShiprocketGateway::pickupGeneratedTrack('AWB-RBP2487-CLASS', '15084', 'Delhivery_Surface'),
+        ];
+        $pickupsBefore = $this->fake->pickups;
+
+        $this->actingAs($this->admin)
+            ->post(route('inventory.hardware-fulfilments.awb.store', $fulfilment->fresh()))
+            ->assertRedirect();
+
+        $shipment = $shipment->fresh();
+        $this->assertSame('AWB-RBP2487-CLASS', $shipment->awb);
+        $this->assertNotNull($shipment->pickup_requested_at);
+        $this->assertSame('pickup_queued', $shipment->provider_track_normalized);
+        $this->assertSame($pickupsBefore, $this->fake->pickups);
+        $this->assertTrue(
+            HardwareFulfilmentEvent::query()
+                ->where('hardware_fulfilment_id', $fulfilment->id)
+                ->where('payload->reason', 'hardware_pickup_reconciled_provider_advanced')
+                ->exists()
+        );
+    }
+
+    public function test_awb_assign_does_not_mark_pickup_when_provider_tracking_not_advanced(): void
+    {
+        $fulfilment = $this->selectTestCourier($this->invoicedFulfilment('RDE2487005', 'DELHI-RETAIL'), $this->admin);
+        $this->actingAs($this->admin)
+            ->post(route('inventory.hardware-fulfilments.shipment.store', $fulfilment))
+            ->assertRedirect();
+
+        $shipment = Shipment::query()->firstOrFail();
+        $this->fake->seedAwb(
+            (string) $shipment->external_shipment_id,
+            'AWB-NOT-ADVANCED',
+            '15084',
+            'Delhivery_Surface',
+        );
+        $this->fake->trackByAwbQueue = [
+            FakeShiprocketGateway::awbAssignedTrack('AWB-NOT-ADVANCED', '15084', 'Delhivery_Surface'),
+        ];
+
+        $this->actingAs($this->admin)
+            ->post(route('inventory.hardware-fulfilments.awb.store', $fulfilment->fresh()))
+            ->assertRedirect();
+
+        $this->assertNull($shipment->fresh()->pickup_requested_at);
+    }
+
     public function test_ambiguous_label_timeout_does_not_invent_a_url(): void
     {
         $fulfilment = $this->awbFulfilment('RDE940006');
