@@ -95,12 +95,61 @@ hostinger_snapshot_gate_release_lock() {
     unset HOSTINGER_SNAPSHOT_GATE_LOCK_HELD
 }
 
+hostinger_snapshot_baseline_id_valid() {
+    local value="${1:-}"
+    [[ "$value" =~ ^[0-9]+$ ]]
+}
+
+# Persist verified snapshot id in the caller shell (not inside command-substitution subshells).
+hostinger_snapshot_gate_persist_baseline_from_report() {
+    local report="$1"
+    local extracted=""
+
+    if [[ -z "$report" ]]; then
+        print_error "Hostinger snapshot initial gate passed but report JSON was empty"
+        return 1
+    fi
+
+    extracted="$(
+        REPORT_JSON="$report" python3 -c 'import json, os, sys
+try:
+    d = json.loads(os.environ["REPORT_JSON"])
+except json.JSONDecodeError:
+    sys.exit(2)
+sid = d.get("snapshot_id")
+if sid is None or sid == "":
+  sys.exit(3)
+print(int(sid))' 2>/dev/null
+    )" || {
+        print_error "Hostinger snapshot initial gate passed but snapshot_id missing or invalid in report"
+        return 1
+    }
+
+    if ! hostinger_snapshot_baseline_id_valid "$extracted"; then
+        print_error "Hostinger snapshot initial gate returned non-numeric snapshot_id: ${extracted}"
+        return 1
+    fi
+
+    if [[ -n "${HOSTINGER_SNAPSHOT_GATE_BASELINE_ID:-}" \
+        && "${HOSTINGER_SNAPSHOT_GATE_BASELINE_ID}" != "$extracted" ]]; then
+        print_error "HOSTINGER_SNAPSHOT_GATE_BASELINE_ID (${HOSTINGER_SNAPSHOT_GATE_BASELINE_ID}) "
+        print_error "does not match verified initial gate snapshot (${extracted})"
+        return 1
+    fi
+
+    HOSTINGER_SNAPSHOT_GATE_BASELINE_ID="$extracted"
+    export HOSTINGER_SNAPSHOT_GATE_BASELINE_ID
+    return 0
+}
+
 hostinger_run_snapshot_gate_python() {
     local phase="$1"
     export HOSTINGER_SNAPSHOT_GATE_PHASE="$phase"
     if [[ "$phase" == "final" && -n "${HOSTINGER_SNAPSHOT_GATE_BASELINE_ID:-}" ]]; then
         export HOSTINGER_SNAPSHOT_GATE_BASELINE_ID
-    else
+    elif [[ "$phase" == "initial" ]]; then
+        unset HOSTINGER_SNAPSHOT_GATE_BASELINE_ID
+    elif [[ "$phase" == "final" ]]; then
         unset HOSTINGER_SNAPSHOT_GATE_BASELINE_ID
     fi
     local outfile
@@ -112,14 +161,6 @@ hostinger_run_snapshot_gate_python() {
         return "$ec"
     fi
     cat "$outfile"
-    if [[ "$phase" == "initial" ]]; then
-        HOSTINGER_SNAPSHOT_GATE_BASELINE_ID="$(
-            python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(d.get("snapshot_id") or "")' "$outfile"
-        )"
-        if [[ -n "$HOSTINGER_SNAPSHOT_GATE_BASELINE_ID" ]]; then
-            export HOSTINGER_SNAPSHOT_GATE_BASELINE_ID
-        fi
-    fi
     rm -f "$outfile"
     return 0
 }
@@ -151,6 +192,10 @@ hostinger_verify_snapshot_gate_if_required() {
         hostinger_snapshot_gate_release_lock
         return 1
     fi
+    if ! hostinger_snapshot_gate_persist_baseline_from_report "$report"; then
+        hostinger_snapshot_gate_release_lock
+        return 1
+    fi
     print_success "Hostinger snapshot initial gate passed"
     return 0
 }
@@ -167,6 +212,11 @@ hostinger_reverify_snapshot_gate_before_rsync() {
     fi
     if [[ -z "${HOSTINGER_SNAPSHOT_GATE_BASELINE_ID:-}" ]]; then
         print_error "Hostinger snapshot final gate missing baseline id from initial check"
+        hostinger_snapshot_gate_release_lock
+        return 1
+    fi
+    if ! hostinger_snapshot_baseline_id_valid "${HOSTINGER_SNAPSHOT_GATE_BASELINE_ID}"; then
+        print_error "Hostinger snapshot final gate baseline id is invalid: ${HOSTINGER_SNAPSHOT_GATE_BASELINE_ID}"
         hostinger_snapshot_gate_release_lock
         return 1
     fi
