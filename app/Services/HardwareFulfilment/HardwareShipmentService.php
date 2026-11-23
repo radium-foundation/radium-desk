@@ -615,6 +615,8 @@ class HardwareShipmentService
                 ]);
             }
 
+            $shipment = Shipment::query()->whereKey($shipment->id)->lockForUpdate()->firstOrFail();
+
             if (filled($shipment->awb)) {
                 $this->syncFulfilment($locked, $shipment);
 
@@ -1163,6 +1165,7 @@ class HardwareShipmentService
                 'provider_tracked_at' => now(),
             ])->save();
 
+            $shipment->refresh();
             if ($shipment->pickup_requested_at === null
                 && ShiprocketTrackingNormalizer::pickupAlreadyAdvanced($track)) {
                 $this->documents->reconcilePickupOnLockedShipment($fulfilment, $shipment, $track, $actor);

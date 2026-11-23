@@ -204,7 +204,8 @@ class HardwareShipmentDocumentsService
                     $shipment->pickup_requested_at,
                 )) {
                     $reconciled = $this->reconcilePickupOnLockedShipment($locked, $shipment, $this->providerTrackForShipment($shipment), $actor);
-                    $shipment = $reconciled ?? ($shipment->fresh() ?? $shipment);
+                    $shipment = $reconciled ?? $shipment;
+                    $shipment->refresh();
                 }
 
                 if ($shipment->pickup_requested_at === null) {
@@ -406,6 +407,8 @@ class HardwareShipmentDocumentsService
         ShiprocketTrackResult $track,
         ?User $actor,
     ): ?Shipment {
+        $shipment->refresh();
+
         if ($shipment->pickup_requested_at !== null) {
             return $shipment;
         }
