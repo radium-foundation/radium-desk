@@ -1,5 +1,14 @@
 # Changelog
 
+## 4.1.113 — 2026-11-23 — Deploy rsync safety, pre-shipment cancel foundation (default off), Shiprocket pickup reconciliation (P-23-06)
+
+- **Deploy tooling (P-22-23 / PR #412):** Fail-closed KVM application rsync deletion inventory, staging-path constraints, and production backup verification before `--delete`.
+- **Pre-shipment cancellation (PR #418):** Additive Phase 2 State **A+B** backend — `pre_shipment_cancellation_requests`, commerce ingestion block columns, services, operator API surface — **disabled in production** unless `PRE_SHIPMENT_CANCELLATION_ENABLED=true` (default **false** / absent).
+- **Hardware fulfilment (PR #420 / P-23-04–05):** Shiprocket pickup reconciliation at AWB assignment and before manifest generation; `pickup_requested_at` aligned when provider track has advanced; idempotent locking on AWB assign.
+- **Migrations (deploy with P-23-07):** `2026_11_22_230000_create_pre_shipment_cancellation_requests_table`, `2026_11_22_230001_add_preship_cancellation_block_to_commerce_orders` (MariaDB **11.8** CI on PR #418).
+- Rollback target: **v4.1.112** / `0fb77b835`.
+- Release prep **P-23-06**; PRs **#412**, **#418**, **#420**. **PR #419** (operator UI) **not** included.
+
 ## 4.1.112 — 2026-11-22 — Backup staging safety, inventory SSH fix, deploy rollback tooling (P-22-06 / P-22-14 / P-22-16 / P-22-17)
 
 - **Backup (P-22-14):** Shared `bin/lib/backup-staging-paths.sh` restricts `chmod`/`setfacl` on backup output parents to validated `BACKUP_STAGING_ROOT` only (prevents accidental hardening of `/tmp` or paths outside staging).

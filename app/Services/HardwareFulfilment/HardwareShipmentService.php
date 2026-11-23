@@ -39,6 +39,7 @@ class HardwareShipmentService
         private readonly ShiprocketGateway $gateway,
         private readonly HardwareFulfilmentParcelSnapshotService $snapshots,
         private readonly HardwareShipmentCourierOptionsService $couriers,
+        private readonly HardwareShipmentDocumentsService $documents,
     ) {}
 
     public function createShipment(HardwareFulfilment $fulfilment, ?User $actor = null): Shipment
@@ -614,6 +615,8 @@ class HardwareShipmentService
                 ]);
             }
 
+            $shipment = Shipment::query()->whereKey($shipment->id)->lockForUpdate()->firstOrFail();
+
             if (filled($shipment->awb)) {
                 $this->syncFulfilment($locked, $shipment);
 
@@ -1143,21 +1146,30 @@ class HardwareShipmentService
         }
     }
 
-    private function persistProviderTrackAfterAwb(Shipment $shipment): void
-    {
+    private function persistProviderTrackAfterAwb(
+        Shipment $shipment,
+        HardwareFulfilment $fulfilment,
+        ?User $actor,
+    ): void {
         $awb = trim((string) $shipment->awb);
         if ($awb === '' || $this->gateway instanceof NullShiprocketGateway) {
             return;
         }
 
         try {
-            $track = $this->gateway->trackByAwb($awb);
+            $track = $this->providerTrackForAwb($awb, $shipment);
             $normalized = ShiprocketTrackingNormalizer::normalize($track);
             $shipment->forceFill([
                 'provider_track_status' => $normalized['provider_track_status'],
                 'provider_track_normalized' => $normalized['normalized']->value,
                 'provider_tracked_at' => now(),
             ])->save();
+
+            $shipment->refresh();
+            if ($shipment->pickup_requested_at === null
+                && ShiprocketTrackingNormalizer::pickupAlreadyAdvanced($track)) {
+                $this->documents->reconcilePickupOnLockedShipment($fulfilment, $shipment, $track, $actor);
+            }
         } catch (Throwable) {
             // Best-effort read-only enrichment; never fail AWB binding.
         }
@@ -1297,7 +1309,7 @@ class HardwareShipmentService
             'last_error' => null,
         ])->save();
 
-        $this->persistProviderTrackAfterAwb($shipment);
+        $this->persistProviderTrackAfterAwb($shipment, $fulfilment, $actor);
 
         ShipmentEvent::query()->create([
             'shipment_id' => $shipment->id,
