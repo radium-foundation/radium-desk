@@ -117,7 +117,11 @@ class PreShipmentCancellationIncidentRetryMysqlConcurrencyTest extends TestCase
         file_put_contents($goPath, '1');
 
         foreach ($processes as $item) {
-            $item['process']->mustRun();
+            $item['process']->wait();
+            $this->assertTrue(
+                $item['process']->isSuccessful(),
+                $item['process']->getErrorOutput().$item['process']->getOutput()
+            );
         }
 
         $results = [];
