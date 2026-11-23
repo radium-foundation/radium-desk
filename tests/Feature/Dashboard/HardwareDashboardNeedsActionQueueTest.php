@@ -697,7 +697,7 @@ class HardwareDashboardNeedsActionQueueTest extends TestCase
             'support_order_id' => $order->id,
             'statutory_invoice_id' => $invoiceModel?->id,
         ]);
-        CommerceOrderItem::query()->create([
+        $commerceItem = CommerceOrderItem::query()->create([
             'commerce_order_id' => $commerce->id,
             'line_no' => 1,
             'sku' => 'RBMFS110L1',
@@ -729,6 +729,7 @@ class HardwareDashboardNeedsActionQueueTest extends TestCase
         if ($serial) {
             HardwareFulfilmentSerial::query()->create([
                 'hardware_fulfilment_id' => $fulfilment->id,
+                'commerce_order_item_id' => $commerceItem->id,
                 'line_no' => 1,
                 'position' => 1,
                 'serial_number' => 'SN-'.$sourceId,
