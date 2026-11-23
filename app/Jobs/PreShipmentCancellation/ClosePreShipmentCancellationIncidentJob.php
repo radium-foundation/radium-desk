@@ -3,6 +3,7 @@
 namespace App\Jobs\PreShipmentCancellation;
 
 use App\Enums\PreShipmentCancellationServiceCaseSyncStatus;
+use App\Infrastructure\Queue\QueueRouting;
 use App\Models\PreShipmentCancellationRequest;
 use App\Models\User;
 use App\Services\PreShipmentCancellation\PreShipmentCancellationFeature;
@@ -14,13 +15,13 @@ use Illuminate\Support\Facades\Log;
 use Throwable;
 
 /**
- * Queue identity: preship-cancel-close-incident
+ * Job identity: preship-cancel-close-incident (dispatched to the shared critical queue).
  */
 class ClosePreShipmentCancellationIncidentJob implements ShouldBeUnique, ShouldQueue
 {
     use Queueable;
 
-    public const QUEUE = 'preship-cancel-close-incident';
+    public const IDENTITY = 'preship-cancel-close-incident';
 
     public int $tries = 4;
 
@@ -33,7 +34,7 @@ class ClosePreShipmentCancellationIncidentJob implements ShouldBeUnique, ShouldQ
         public readonly int $preShipmentCancellationRequestId,
         public readonly ?int $actorUserId = null,
     ) {
-        $this->onQueue(self::QUEUE);
+        $this->onQueue(QueueRouting::critical());
     }
 
     public function uniqueId(): string

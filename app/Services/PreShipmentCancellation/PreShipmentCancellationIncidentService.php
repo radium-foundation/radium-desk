@@ -5,6 +5,7 @@ namespace App\Services\PreShipmentCancellation;
 use App\Enums\IncidentStatus;
 use App\Enums\PreShipmentCancellationServiceCaseSyncStatus;
 use App\Enums\PreShipmentCancellationStatus;
+use App\Models\AuditLog;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\PreShipmentCancellationRequest;
@@ -27,6 +28,27 @@ final class PreShipmentCancellationIncidentService
 
     public function closeForCancellation(PreShipmentCancellationRequest $request, User $actor): PreShipmentCancellationRequest
     {
+        return DB::transaction(function () use ($request, $actor): PreShipmentCancellationRequest {
+            $request = PreShipmentCancellationRequest::query()
+                ->whereKey($request->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if (in_array($request->service_case_sync_status, [
+                PreShipmentCancellationServiceCaseSyncStatus::Succeeded,
+                PreShipmentCancellationServiceCaseSyncStatus::NotApplicable,
+            ], true)) {
+                return $request;
+            }
+
+            return $this->closeForCancellationWithinTransaction($request, $actor);
+        });
+    }
+
+    private function closeForCancellationWithinTransaction(
+        PreShipmentCancellationRequest $request,
+        User $actor,
+    ): PreShipmentCancellationRequest {
         $order = $request->order ?? Order::query()->find($request->order_id);
         if ($order === null) {
             throw ValidationException::withMessages([
@@ -62,24 +84,26 @@ final class PreShipmentCancellationIncidentService
         $incident = $open->first();
 
         try {
-            return DB::transaction(function () use ($request, $actor, $incident): PreShipmentCancellationRequest {
-                if ($incident->status === IncidentStatus::Closed) {
-                    $request->forceFill([
-                        'service_case_incident_id' => $incident->id,
-                        'service_case_sync_status' => PreShipmentCancellationServiceCaseSyncStatus::Succeeded,
-                    ])->save();
+            $incident = Incident::query()->whereKey($incident->id)->lockForUpdate()->firstOrFail();
 
-                    return $request->fresh() ?? $request;
-                }
+            if ($incident->status === IncidentStatus::Closed) {
+                $request->forceFill([
+                    'service_case_incident_id' => $incident->id,
+                    'service_case_sync_status' => PreShipmentCancellationServiceCaseSyncStatus::Succeeded,
+                ])->save();
 
-                $closed = $this->serviceCaseStatus->updateStatus(
-                    incident: $incident,
-                    status: IncidentStatus::Closed,
-                    actor: $actor,
-                    broadcast: false,
-                    issueStatutoryInvoice: false,
-                );
+                return $request->fresh() ?? $request;
+            }
 
+            $closed = $this->serviceCaseStatus->updateStatus(
+                incident: $incident,
+                status: IncidentStatus::Closed,
+                actor: $actor,
+                broadcast: false,
+                issueStatutoryInvoice: false,
+            );
+
+            if (! $this->preshipCancelAuditExists($request->id)) {
                 $this->auditLogService->log(
                     userId: $actor->id,
                     event: self::AUDIT_HARDWARE_PRESHIP_CANCELLED,
@@ -93,19 +117,19 @@ final class PreShipmentCancellationIncidentService
                         'committed_at' => optional($request->committed_at)?->toIso8601String(),
                     ],
                 );
+            }
 
-                $request->forceFill([
-                    'service_case_incident_id' => $closed->id,
-                    'service_case_sync_status' => PreShipmentCancellationServiceCaseSyncStatus::Succeeded,
-                    'service_case_outcome' => [
-                        'incident_id' => $closed->id,
-                        'status' => $closed->status->value,
-                        'closed_at' => now()->toIso8601String(),
-                    ],
-                ])->save();
+            $request->forceFill([
+                'service_case_incident_id' => $closed->id,
+                'service_case_sync_status' => PreShipmentCancellationServiceCaseSyncStatus::Succeeded,
+                'service_case_outcome' => [
+                    'incident_id' => $closed->id,
+                    'status' => $closed->status->value,
+                    'closed_at' => now()->toIso8601String(),
+                ],
+            ])->save();
 
-                return $request->fresh() ?? $request;
-            });
+            return $request->fresh() ?? $request;
         } catch (\Throwable) {
             $request->forceFill([
                 'service_case_incident_id' => $incident->id,
@@ -119,10 +143,14 @@ final class PreShipmentCancellationIncidentService
 
     public function retryClose(PreShipmentCancellationRequest $request, User $actor): PreShipmentCancellationRequest
     {
-        if ($request->service_case_sync_status === PreShipmentCancellationServiceCaseSyncStatus::Succeeded) {
-            return $request;
-        }
-
         return $this->closeForCancellation($request, $actor);
+    }
+
+    private function preshipCancelAuditExists(int $preShipmentCancellationRequestId): bool
+    {
+        return AuditLog::query()
+            ->where('event', self::AUDIT_HARDWARE_PRESHIP_CANCELLED)
+            ->where('new_values->pre_shipment_cancellation_request_id', $preShipmentCancellationRequestId)
+            ->exists();
     }
 }

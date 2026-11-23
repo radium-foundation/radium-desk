@@ -12,6 +12,6 @@
 | Item | Notes |
 |------|--------|
 | Operator HTTP UI and routes | Gated middleware + policy; order create/show; Finance central queue; approve/reject/link-refund. |
-| Async Incident retry queue job | `ClosePreShipmentCancellationIncidentJob` on queue **`preship-cancel-close-incident`**; idempotency `psc-incident:{request_id}`. |
+| Async Incident retry queue job | Job identity **`preship-cancel-close-incident`**; dispatched to **`critical`** queue (`QueueRouting::critical()`). See `docs/desk-p23-02-preship-incident-queue-wiring.md`. |
 
 Feature flag default remains **`PRE_SHIPMENT_CANCELLATION_ENABLED=false`**. State C/D still excluded.
