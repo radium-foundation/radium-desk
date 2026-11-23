@@ -17,6 +17,8 @@ use App\Services\PreShipmentCancellation\PreShipmentCancellationFeature;
 use App\Services\PreShipmentCancellation\PreShipmentCancellationIncidentService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Log;
+use RuntimeException;
 use Tests\TestCase;
 
 class PreShipmentCancellationCloseIncidentJobTest extends TestCase
@@ -131,5 +133,60 @@ class PreShipmentCancellationCloseIncidentJobTest extends TestCase
             app(PreShipmentCancellationFeature::class),
         );
         $this->assertTrue(true);
+    }
+
+    public function test_job_failed_logs_exhaustion_without_mutating_case_or_audit(): void
+    {
+        $actor = User::factory()->create();
+        $order = Order::query()->create([
+            'order_id' => 'RBP9200999',
+            'product_name' => 'Device',
+            'device_model' => 'M1',
+            'status' => 'active',
+            'payment_amount' => 1000,
+            'cashfree_payment_id' => 'cf_failed_job',
+            'created_by' => $actor->id,
+        ]);
+
+        $case = PreShipmentCancellationRequest::query()->create([
+            'reference_no' => 'PSC-FAILED-0001',
+            'order_id' => $order->id,
+            'source_id' => $order->order_id,
+            'order_family' => 'rbp',
+            'status' => 'held_service_case',
+            'cancellation_reason' => 'Failed-job exhaustion contract',
+            'submitted_by_user_id' => $actor->id,
+            'order_total_amount' => 1000,
+            'wallet_tender_amount' => 0,
+            'external_tender_amount' => 1000,
+            'already_refunded_amount' => 0,
+            'maximum_refundable_amount' => 1000,
+            'requested_refund_amount' => 1000,
+            'split_tender' => false,
+            'execution_hold' => false,
+            'idempotency_key' => 'psc-failed-job',
+            'service_case_sync_status' => PreShipmentCancellationServiceCaseSyncStatus::Failed,
+            'committed_at' => now(),
+        ]);
+
+        $auditBefore = AuditLog::query()->count();
+        $statusBefore = $case->service_case_sync_status;
+
+        $job = new ClosePreShipmentCancellationIncidentJob($case->id, $actor->id);
+        $exception = new RuntimeException('synthetic queue exhaustion');
+
+        Log::shouldReceive('error')
+            ->twice()
+            ->withArgs(function (string $message, array $context) use ($case, $exception): bool {
+                return str_contains($message, '[preship-cancel-close-incident] Exhausted retries.')
+                    && ($context['pre_shipment_cancellation_request_id'] ?? null) === $case->id
+                    && ($context['error'] ?? null) === $exception->getMessage();
+            });
+
+        $job->failed($exception);
+        $job->failed($exception);
+
+        $this->assertSame($statusBefore, $case->fresh()->service_case_sync_status);
+        $this->assertSame($auditBefore, AuditLog::query()->count());
     }
 }
