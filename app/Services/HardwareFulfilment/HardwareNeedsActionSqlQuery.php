@@ -6,6 +6,7 @@ use App\Enums\HardwareFulfilmentSerialStatus;
 use App\Enums\HardwareFulfilmentState;
 use App\Enums\HardwareWorkspaceFilter;
 use App\Enums\HardwareWorkspaceScope;
+use App\Enums\RefundStatus;
 use App\Enums\ShiprocketTrackNormalized;
 use App\Models\HardwareFulfilment;
 use App\Models\Order;
@@ -314,6 +315,10 @@ final class HardwareNeedsActionSqlQuery
             $inner->orWhere(function (Builder $provider): void {
                 $this->constrainUnrecoverableProviderRejected($provider);
             });
+
+            $inner->orWhere(function (Builder $provider): void {
+                $this->constrainProviderRejectedAwbBlocked($provider);
+            });
         });
 
         return $query;
@@ -458,6 +463,7 @@ final class HardwareNeedsActionSqlQuery
         $this->whereHasInvoice($query);
         $this->whereBoundShipment($query);
         $this->whereAwbEmpty($query);
+        $this->whereNotProviderRejectedAwbBlocked($query);
     }
 
     private function activeFulfilmentQuery(string $search): Builder
@@ -470,6 +476,7 @@ final class HardwareNeedsActionSqlQuery
                 HardwareFulfilmentState::CancelledHistoricalDuplicate->value,
             ])
             ->whereNotIn('hardware_fulfilments.source_id', $this->ownerBlockedSourceIds());
+        $this->whereNotExcludedByTerminalRefund($query);
         $this->applyFulfilmentSearch($query, $search);
 
         return $query;
@@ -489,27 +496,210 @@ final class HardwareNeedsActionSqlQuery
         return $query;
     }
 
+    /**
+     * SQL parity with {@see HardwarePhysicalStockCommitment::isStockCommitted()}.
+     */
     private function whereMissingAllocatedSerial(Builder $query): void
     {
-        $query->whereNotExists(function ($sub): void {
-            $sub->selectRaw('1')
-                ->from('hardware_fulfilment_serials')
-                ->whereColumn('hardware_fulfilment_serials.hardware_fulfilment_id', 'hardware_fulfilments.id')
-                ->where('hardware_fulfilment_serials.status', HardwareFulfilmentSerialStatus::Allocated->value)
-                ->whereNotNull('hardware_fulfilment_serials.serial_number')
-                ->where('hardware_fulfilment_serials.serial_number', '!=', '');
+        $this->whereUnmetPhysicalStockAllocation($query);
+    }
+
+    /**
+     * SQL parity with {@see HardwarePhysicalStockCommitment::isStockCommitted()}.
+     */
+    private function whereHasAllocatedSerial(Builder $query): void
+    {
+        $query->whereNot(function (Builder $unmet): void {
+            $this->whereUnmetPhysicalStockAllocation($unmet);
         });
     }
 
-    private function whereHasAllocatedSerial(Builder $query): void
+    /**
+     * Honour quantity-only commits in fulfilment metadata; do not infer from AWB alone.
+     */
+    private function whereUnmetPhysicalStockAllocation(Builder $query): void
     {
+        $query->where(function (Builder $outer): void {
+            $outer->whereNotExists(function ($sub): void {
+                $sub->selectRaw('1')
+                    ->from('commerce_order_items as coi')
+                    ->whereColumn('coi.commerce_order_id', 'hardware_fulfilments.commerce_order_id')
+                    ->where(function ($physical): void {
+                        $physical->where('coi.shipping_line_kind', HardwareFulfilmentEligibility::PHYSICAL_LINE_KIND)
+                            ->orWhereNotNull('coi.model_id');
+                    });
+            })->orWhereExists(function ($sub): void {
+                $this->constrainUnmetSerializedStock($sub);
+            })->orWhereExists(function ($sub): void {
+                $this->constrainUnmetQuantityStock($sub);
+            })->orWhereExists(function ($sub): void {
+                $this->constrainUnmappedPhysicalStock($sub);
+            });
+        });
+    }
+
+    private function constrainUnmappedPhysicalStock($sub): void
+    {
+        $sub->selectRaw('1')
+            ->from('commerce_order_items as coi')
+            ->whereColumn('coi.commerce_order_id', 'hardware_fulfilments.commerce_order_id')
+            ->where(function ($physical): void {
+                $physical->where('coi.shipping_line_kind', HardwareFulfilmentEligibility::PHYSICAL_LINE_KIND)
+                    ->orWhereNotNull('coi.model_id');
+            })
+            ->where(function ($missing): void {
+                $missing->whereNull('coi.model_id')
+                    ->orWhere('coi.model_id', '<', 1)
+                    ->orWhereNotExists(function ($map): void {
+                        $map->selectRaw('1')
+                            ->from('channel_sku_maps')
+                            ->join('inventory_products', 'inventory_products.id', '=', 'channel_sku_maps.inventory_product_id')
+                            ->whereColumn('channel_sku_maps.channel', 'hardware_fulfilments.channel')
+                            ->whereColumn('channel_sku_maps.model_id', 'coi.model_id')
+                            ->where('inventory_products.is_active', true);
+                    });
+            });
+    }
+
+    private function constrainUnmetSerializedStock($sub): void
+    {
+        $sub->selectRaw('1')
+            ->from('commerce_order_items as coi')
+            ->join('channel_sku_maps as csm', function ($join): void {
+                $join->on('csm.channel', '=', 'hardware_fulfilments.channel')
+                    ->on('csm.model_id', '=', 'coi.model_id');
+            })
+            ->join('inventory_products as ip', function ($join): void {
+                $join->on('ip.id', '=', 'csm.inventory_product_id')
+                    ->where('ip.is_active', true);
+            })
+            ->whereColumn('coi.commerce_order_id', 'hardware_fulfilments.commerce_order_id')
+            ->where(function ($physical): void {
+                $physical->where('coi.shipping_line_kind', HardwareFulfilmentEligibility::PHYSICAL_LINE_KIND)
+                    ->orWhereNotNull('coi.model_id');
+            })
+            ->where('ip.is_serialized', true)
+            ->whereRaw(
+                '(SELECT COUNT(*) FROM hardware_fulfilment_serials hfs WHERE hfs.hardware_fulfilment_id = hardware_fulfilments.id AND hfs.commerce_order_item_id = coi.id AND hfs.status = ? AND hfs.serial_number IS NOT NULL AND hfs.serial_number != ?) < coi.qty',
+                [HardwareFulfilmentSerialStatus::Allocated->value, ''],
+            );
+    }
+
+    private function constrainUnmetQuantityStock($sub): void
+    {
+        $sub->selectRaw('1')
+            ->from('commerce_order_items as coi')
+            ->join('channel_sku_maps as csm', function ($join): void {
+                $join->on('csm.channel', '=', 'hardware_fulfilments.channel')
+                    ->on('csm.model_id', '=', 'coi.model_id');
+            })
+            ->join('inventory_products as ip', function ($join): void {
+                $join->on('ip.id', '=', 'csm.inventory_product_id')
+                    ->where('ip.is_active', true);
+            })
+            ->whereColumn('coi.commerce_order_id', 'hardware_fulfilments.commerce_order_id')
+            ->where(function ($physical): void {
+                $physical->where('coi.shipping_line_kind', HardwareFulfilmentEligibility::PHYSICAL_LINE_KIND)
+                    ->orWhereNotNull('coi.model_id');
+            })
+            ->where('ip.is_serialized', false)
+            ->where(function ($qty): void {
+                $qty->whereNull(DB::raw($this->metadataQuantityCommittedAtSql()))
+                    ->orWhereRaw($this->metadataQuantityBelowLineSql());
+            });
+    }
+
+    private function metadataQuantityCommittedAtSql(): string
+    {
+        return match (DB::connection()->getDriverName()) {
+            'sqlite' => "json_extract(hardware_fulfilments.metadata, '$.quantity_stock_committed_at')",
+            default => "JSON_UNQUOTE(JSON_EXTRACT(hardware_fulfilments.metadata, '$.quantity_stock_committed_at'))",
+        };
+    }
+
+    private function metadataQuantityBelowLineSql(): string
+    {
+        return match (DB::connection()->getDriverName()) {
+            'sqlite' => "CAST(COALESCE(json_extract(hardware_fulfilments.metadata, '$.quantity_stock.' || coi.id), 0) AS INTEGER) < coi.qty",
+            default => "CAST(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(hardware_fulfilments.metadata, CONCAT('$.quantity_stock.\"', coi.id, '\"'))), 0) AS UNSIGNED) < coi.qty",
+        };
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function terminalSuccessRefundStatuses(): array
+    {
+        return array_values(array_unique(array_map(
+            static fn (RefundStatus $status): string => $status->value,
+            array_filter(
+                RefundStatus::cases(),
+                static fn (RefundStatus $status): bool => $status->isTerminalSuccess(),
+            ),
+        )));
+    }
+
+    private function whereNotExcludedByTerminalRefund(Builder $query): void
+    {
+        $statuses = $this->terminalSuccessRefundStatuses();
+        if ($statuses === []) {
+            return;
+        }
+
+        $query->where(function (Builder $outer) use ($statuses): void {
+            $outer->whereNull('hardware_fulfilments.support_order_id')
+                ->orWhereNotExists(function ($sub) use ($statuses): void {
+                    $sub->selectRaw('1')
+                        ->from('refund_requests as rr')
+                        ->whereColumn('rr.order_id', 'hardware_fulfilments.support_order_id')
+                        ->whereIn('rr.status', $statuses);
+                });
+        });
+    }
+
+    /**
+     * Provider-rejected AWB assignment (RBP2536 pattern): not ordinary AWB Pending.
+     */
+    private function whereNotProviderRejectedAwbBlocked(Builder $query): void
+    {
+        $query->whereNotExists(function ($sub): void {
+            $sub->selectRaw('1')
+                ->from('shipments')
+                ->where(function ($join): void {
+                    $join->whereColumn('shipments.id', 'hardware_fulfilments.shipment_id')
+                        ->orWhereColumn('shipments.hardware_fulfilment_id', 'hardware_fulfilments.id');
+                })
+                ->where('shipments.failure_class', 'provider_rejected')
+                ->whereNotNull('shipments.last_error')
+                ->where('shipments.last_error', '!=', '');
+        });
+    }
+
+    /**
+     * SQL hook for Exceptions legacy bucket: visible, distinguishable from AWB Pending.
+     */
+    private function constrainProviderRejectedAwbBlocked(Builder $query): void
+    {
+        $query->whereNotIn('hardware_fulfilments.state', [
+            HardwareFulfilmentState::Shipped->value,
+            HardwareFulfilmentState::Synced->value,
+            HardwareFulfilmentState::CancelledHistoricalDuplicate->value,
+        ])->whereNotIn('hardware_fulfilments.source_id', $this->ownerBlockedSourceIds());
+
+        $this->whereHasAllocatedSerial($query);
+        $this->whereHasInvoice($query);
+        $this->whereBoundShipment($query);
+        $this->whereAwbEmpty($query);
         $query->whereExists(function ($sub): void {
             $sub->selectRaw('1')
-                ->from('hardware_fulfilment_serials')
-                ->whereColumn('hardware_fulfilment_serials.hardware_fulfilment_id', 'hardware_fulfilments.id')
-                ->where('hardware_fulfilment_serials.status', HardwareFulfilmentSerialStatus::Allocated->value)
-                ->whereNotNull('hardware_fulfilment_serials.serial_number')
-                ->where('hardware_fulfilment_serials.serial_number', '!=', '');
+                ->from('shipments')
+                ->where(function ($join): void {
+                    $join->whereColumn('shipments.id', 'hardware_fulfilments.shipment_id')
+                        ->orWhereColumn('shipments.hardware_fulfilment_id', 'hardware_fulfilments.id');
+                })
+                ->where('shipments.failure_class', 'provider_rejected')
+                ->whereNotNull('shipments.last_error')
+                ->where('shipments.last_error', '!=', '');
         });
     }
 
