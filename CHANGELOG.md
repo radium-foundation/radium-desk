@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.1.114 — 2026-11-23 — Pre-shipment cancellation operator workflow (default off) (P-23-16 / PR #419)
+
+- **Pre-shipment cancellation (PR #419):** Phase 2 State **A+B** operator HTTP workflow — finance/operator routes, policy, middleware, queue views; **`ClosePreShipmentCancellationIncidentJob`** dispatched to the shared **`critical`** queue with idempotent incident-close retries.
+- **CI:** MariaDB **11.8** ingest-race and incident-retry concurrency steps in **`preship-cancel-mariadb`**; extended sqlite operator/idempotency/route-security regression bundle.
+- **Feature flag:** **`PRE_SHIPMENT_CANCELLATION_ENABLED`** remains default **false**; production is **not** enabled by this release alone.
+- **Migrations:** None (schema from **v4.1.113** unchanged).
+- Rollback target: **v4.1.113** / `57bb9b0b0`.
+
 ## 4.1.113 — 2026-11-23 — Deploy rsync safety, pre-shipment cancel foundation (default off), Shiprocket pickup reconciliation (P-23-06)
 
 - **Deploy tooling (P-22-23 / PR #412):** Fail-closed KVM application rsync deletion inventory, staging-path constraints, and production backup verification before `--delete`.
