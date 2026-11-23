@@ -199,9 +199,19 @@ class HardwareShipmentDocumentsService
 
             $this->assertAwbReady($locked, $shipment);
             if ($shipment->pickup_requested_at === null) {
-                throw ValidationException::withMessages([
-                    'shipping' => 'Manifest generation requires a requested pickup.',
-                ]);
+                if (ShiprocketTrackingNormalizer::pickupAdvancedOnShipment(
+                    filled($shipment->provider_track_normalized) ? (string) $shipment->provider_track_normalized : null,
+                    $shipment->pickup_requested_at,
+                )) {
+                    $reconciled = $this->reconcilePickupOnLockedShipment($locked, $shipment, $this->providerTrackForShipment($shipment), $actor);
+                    $shipment = $reconciled ?? ($shipment->fresh() ?? $shipment);
+                }
+
+                if ($shipment->pickup_requested_at === null) {
+                    throw ValidationException::withMessages([
+                        'shipping' => 'Manifest generation requires a requested pickup.',
+                    ]);
+                }
             }
 
             $this->assertProviderCallable();
@@ -386,16 +396,20 @@ class HardwareShipmentDocumentsService
         }
     }
 
-    private function applyProviderTrackPickupReconciliation(
+    /**
+     * Reconcile local pickup timestamp from a verified provider track payload.
+     * Idempotent when pickup is already local. Does not call pickup generation.
+     */
+    public function reconcilePickupOnLockedShipment(
         HardwareFulfilment $locked,
         Shipment $shipment,
+        ShiprocketTrackResult $track,
         ?User $actor,
     ): ?Shipment {
         if ($shipment->pickup_requested_at !== null) {
             return $shipment;
         }
 
-        $track = $this->providerTrackForShipment($shipment);
         if (! ShiprocketTrackingNormalizer::pickupAlreadyAdvanced($track)) {
             return null;
         }
@@ -415,6 +429,19 @@ class HardwareShipmentDocumentsService
                 'provider_track_status' => $normalized['provider_track_status'],
                 'provider_track_normalized' => $normalized['normalized']->value,
             ],
+        );
+    }
+
+    private function applyProviderTrackPickupReconciliation(
+        HardwareFulfilment $locked,
+        Shipment $shipment,
+        ?User $actor,
+    ): ?Shipment {
+        return $this->reconcilePickupOnLockedShipment(
+            $locked,
+            $shipment,
+            $this->providerTrackForShipment($shipment),
+            $actor,
         );
     }
 
