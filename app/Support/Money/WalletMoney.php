@@ -16,6 +16,14 @@ final class WalletMoney
             return sprintf('%d.00', $value);
         }
 
+        if (is_float($value)) {
+            if ($value < 0) {
+                return null;
+            }
+
+            return bcadd(sprintf('%.'.self::SCALE.'f', round($value, self::SCALE)), '0', self::SCALE);
+        }
+
         if (is_string($value)) {
             $trimmed = trim($value);
             if (preg_match('/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/', $trimmed) !== 1) {
