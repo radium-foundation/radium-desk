@@ -317,6 +317,25 @@ class HardwareFulfilmentOperationalWorkflowTest extends TestCase
             ->assertRedirect()
             ->assertSessionHas('status', 'Pickup requested.');
 
+        HardwareFulfilmentPackageEvidence::query()->create([
+            'hardware_fulfilment_id' => $fulfilment->id,
+            'kind' => HardwareFulfilmentPackageEvidenceKind::PackageBeforeLabel,
+            'disk' => 'local',
+            'path' => 'private/hardware-fulfilment-evidence/'.$fulfilment->id.'/before.jpg',
+            'original_filename' => 'before.jpg',
+            'mime_type' => 'image/jpeg',
+            'size_bytes' => 100,
+            'uploaded_by_user_id' => $this->admin->id,
+            'uploaded_at' => now(),
+        ]);
+
+        $this->actingAs($this->admin)
+            ->get(route('inventory.hardware-fulfilments.show', $fulfilment->fresh(['packageEvidences'])))
+            ->assertOk()
+            ->assertDontSee('View Photo', false)
+            ->assertDontSee('Package Photo (archived)', false)
+            ->assertDontSee('id="hardware-package-evidence"', false);
+
         $afterPickup = app(HardwareShipmentEligibility::class)->inspect($fulfilment->fresh());
         $this->assertTrue($afterPickup->canMarkReadyForPickup);
 
@@ -334,7 +353,7 @@ class HardwareFulfilmentOperationalWorkflowTest extends TestCase
 
         $fresh = $fulfilment->fresh();
         $this->assertNotNull($fresh->ready_for_pickup_at);
-        $this->assertSame(0, HardwareFulfilmentPackageEvidence::query()->count());
+        $this->assertSame(1, HardwareFulfilmentPackageEvidence::query()->count());
         $this->assertSame(HardwareFulfilmentState::AwbAssigned, $fresh->state);
         Http::assertNothingSent();
     }

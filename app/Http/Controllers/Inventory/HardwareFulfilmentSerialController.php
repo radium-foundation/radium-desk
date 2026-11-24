@@ -32,7 +32,6 @@ use App\Http\Requests\Inventory\SelectHardwareFulfilmentShippingMethodRequest;
 use App\Http\Requests\Inventory\ShipAndGenerateHardwareFulfilmentLabelRequest;
 use App\Http\Requests\Inventory\UploadHardwareExternalShipmentDocumentRequest;
 use App\Models\HardwareFulfilment;
-use App\Models\HardwareFulfilmentPackageEvidence;
 use App\Models\Incident;
 use App\Models\InventoryBranch;
 use App\Models\Order;
@@ -798,23 +797,6 @@ class HardwareFulfilmentSerialController extends Controller
         $this->documents->generateManifest($fulfilment, $request->user());
 
         return $this->mutationResponse($request, $fulfilment, 'Manifest generated.');
-    }
-
-    public function showPackageEvidence(
-        Request $request,
-        HardwareFulfilment $fulfilment,
-        HardwareFulfilmentPackageEvidence $evidence,
-    ): StreamedResponse {
-        $this->assertCanOperateFulfilment($request, $fulfilment);
-        abort_unless((int) $evidence->hardware_fulfilment_id === (int) $fulfilment->id, 404);
-
-        $disk = $evidence->disk ?: 'local';
-        abort_unless(Storage::disk($disk)->exists($evidence->path), 404);
-
-        return Storage::disk($disk)->response(
-            $evidence->path,
-            $evidence->original_filename ?: basename($evidence->path),
-        );
     }
 
     public function storeReadyForPickup(MarkHardwareFulfilmentReadyForPickupRequest $request, HardwareFulfilment $fulfilment): RedirectResponse|JsonResponse
