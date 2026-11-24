@@ -163,6 +163,12 @@ return Application::configure(basePath: dirname(__DIR__))
             ->withoutOverlapping()
             ->appendOutputTo(storage_path('logs/ira-daily-briefing.log'));
 
+        $schedule->command('operations:send-aw-order-daily-telegram')
+            ->dailyAt(config('operations_aw_orders.daily_telegram.schedule_time', '08:00'))
+            ->timezone(config('app.schedule_timezone', 'Asia/Kolkata'))
+            ->withoutOverlapping()
+            ->appendOutputTo(storage_path('logs/aw-order-daily-telegram.log'));
+
         $schedule->command('ira:send-ops-digest --period=morning')
             ->dailyAt(config('ira.communication.admin_ops_digest.morning_time', '10:00'))
             ->withoutOverlapping()
