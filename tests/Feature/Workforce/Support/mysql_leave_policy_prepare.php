@@ -40,7 +40,10 @@ if (Artisan::call('migrate', ['--force' => true]) !== 0) {
 app()->make(RolePermissionSeeder::class)->run();
 Carbon::setTestNow(Carbon::parse('2026-08-05 10:00:00', 'Asia/Kolkata'));
 
-config(['workforce.leave_approver.email' => 'leave-authority-'.$suffix.'@radiumbox.com']);
+config([
+    'workforce_calendar.retroactive_leave_days' => 2,
+    'workforce.leave_approver.email' => 'leave-authority-'.$suffix.'@radiumbox.com',
+]);
 $approver = User::factory()->create([
     'email' => 'leave-authority-'.$suffix.'@radiumbox.com',
     'is_active' => true,
@@ -229,5 +232,8 @@ $context['leave_policy_coverage'] = [
     'triad_emails' => config('leave_policy.coverage.triad_emails', []),
     'admin_pair_emails' => config('leave_policy.coverage.admin_pair_emails', []),
 ];
+$context['test_now'] = '2026-08-05 10:00:00';
+$context['test_now_timezone'] = 'Asia/Kolkata';
+$context['retroactive_leave_days'] = (int) ($context['retroactive_leave_days'] ?? config('workforce_calendar.retroactive_leave_days', 2));
 
 echo json_encode($context, JSON_THROW_ON_ERROR);
