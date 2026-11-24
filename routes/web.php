@@ -123,6 +123,7 @@ use App\Http\Controllers\ServicePos\CounterController as ServicePosCounterContro
 use App\Http\Controllers\ServicePos\QuoteController as ServicePosQuoteController;
 use App\Http\Controllers\ServicePos\SaleController as ServicePosSaleController;
 use App\Http\Controllers\ServicePos\ServiceOrderController as ServicePosOrderController;
+use App\Http\Controllers\SessionStatusController;
 use App\Http\Controllers\SettingProductController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\SettingSourceController;
@@ -143,7 +144,6 @@ use App\Http\Controllers\Workforce\ShortAttendanceReviewController;
 use App\Http\Controllers\Workforce\WorkforceMember360Controller;
 use App\Http\Controllers\Workforce\WorkRecognitionController;
 use App\Http\Controllers\Workforce360Controller;
-use App\Http\Controllers\SessionStatusController;
 use App\Http\Controllers\WorkspaceActionController;
 use App\Http\Controllers\WorkspaceComponentController;
 use Database\Seeders\RolePermissionSeeder;
@@ -163,11 +163,11 @@ Route::middleware('signed')->group(function () {
         ->name('support-appointments.confirmation');
 });
 
-Route::middleware(['auth', 'active'])->group(function () {
-    Route::get('/session/status', SessionStatusController::class)
-        ->middleware('session.probe')
-        ->name('session.status');
+Route::get('/session/status', SessionStatusController::class)
+    ->middleware(['session.probe', 'active'])
+    ->name('session.status');
 
+Route::middleware(['auth', 'active'])->group(function () {
     Route::prefix('driver-management/radiumbox')
         ->name('driver-management.radiumbox.')
         ->middleware('permission:'.RolePermissionSeeder::PERMISSION_DRIVERS_MANAGE_RADIUMBOX)

@@ -53,6 +53,26 @@ class SessionLifecycleTest extends TestCase
             ->assertUnauthorized();
     }
 
+    public function test_session_probe_does_not_update_work_session_last_activity_at(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
+
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $presence = app(PresenceEngineService::class);
+        $workSession = $presence->startSession($agent);
+        $originalLastActivity = $workSession->last_activity_at?->copy();
+
+        Carbon::setTestNow(now()->addMinutes(2));
+
+        $this->actingAs($agent)->getJson(route('session.status'))->assertOk();
+
+        $workSession->refresh();
+
+        $this->assertTrue($originalLastActivity?->equalTo($workSession->last_activity_at));
+    }
+
     public function test_session_probe_does_not_create_work_session(): void
     {
         $agent = User::factory()->create();
@@ -130,10 +150,19 @@ class SessionLifecycleTest extends TestCase
         $agent = User::factory()->create();
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
 
-        $this->actingAs($agent)
+        $response = $this->actingAs($agent)
             ->get(route('dashboard'))
-            ->assertOk()
-            ->assertHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+            ->assertOk();
+
+        $directives = array_map(
+            'trim',
+            explode(',', strtolower((string) $response->headers->get('Cache-Control', ''))),
+        );
+
+        $this->assertEqualsCanonicalizing(
+            ['no-store', 'no-cache', 'must-revalidate', 'private'],
+            $directives,
+        );
     }
 
     public function test_login_page_does_not_receive_authenticated_cache_control(): void

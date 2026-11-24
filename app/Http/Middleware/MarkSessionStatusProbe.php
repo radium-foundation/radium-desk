@@ -4,12 +4,13 @@ namespace App\Http\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Session\Middleware\StartSession;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
  * Marks session-status probe requests so Laravel skips persisting session data.
  *
- * @see \Illuminate\Session\Middleware\StartSession::saveSession()
+ * @see StartSession::saveSession()
  */
 class MarkSessionStatusProbe
 {

@@ -17,23 +17,25 @@ class SetAuthenticatedHtmlCacheControl
     {
         $response = $next($request);
 
-        if ($request->user() === null) {
+        if ($request->user() === null || ! $this->isHtmlResponse($response)) {
             return $response;
         }
 
-        if (! $this->isHtmlResponse($response)) {
-            return $response;
-        }
-
-        $response->headers->set('Cache-Control', self::CACHE_CONTROL);
+        $response->headers->set('Cache-Control', self::CACHE_CONTROL, true);
 
         return $response;
     }
 
     private function isHtmlResponse(Response $response): bool
     {
-        $contentType = $response->headers->get('Content-Type', '');
+        $contentType = strtolower($response->headers->get('Content-Type', ''));
 
-        return str_contains(strtolower($contentType), 'text/html');
+        if (str_contains($contentType, 'text/html')) {
+            return true;
+        }
+
+        $content = $response->getContent();
+
+        return is_string($content) && str_starts_with(ltrim($content), '<');
     }
 }
