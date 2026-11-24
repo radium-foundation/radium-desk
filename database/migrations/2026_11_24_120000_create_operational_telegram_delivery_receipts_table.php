@@ -18,7 +18,7 @@ return new class extends Migration
             $table->timestamps();
 
             $table->unique(['delivery_kind', 'report_date', 'user_id'], 'operational_telegram_delivery_unique');
-            $table->index(['delivery_kind', 'report_date']);
+            $table->index(['delivery_kind', 'report_date'], 'op_tg_delivery_kind_date_idx');
         });
     }
 
