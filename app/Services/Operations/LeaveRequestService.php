@@ -70,6 +70,7 @@ class LeaveRequestService
         $autoApproved = false;
 
         $leaveRequest = DB::transaction(function () use ($requester, $data, $startDate, $endDate, $duration, $manualException, &$autoApproved): LeaveRequest {
+            $this->lockSubmittingUserForUpdate($requester);
             $this->lockActiveLeaveRequestsFor($requester);
             $this->leaveCoverageGuard->lockCoverageGroupRows($requester);
 
@@ -189,6 +190,7 @@ class LeaveRequestService
                 ]);
             }
 
+            $this->lockSubmittingUserForUpdate($requester);
             $this->lockActiveLeaveRequestsFor($requester);
             $this->leaveCoverageGuard->lockCoverageGroupRows($requester);
             $this->leavePolicyOrchestrator->assertEmployeeDurationAllowed($duration);
@@ -648,6 +650,17 @@ class LeaveRequestService
             ])
             ->lockForUpdate()
             ->get();
+    }
+
+    /**
+     * Serialize leave submissions per employee when no pending/approved rows exist yet.
+     */
+    private function lockSubmittingUserForUpdate(User $user): void
+    {
+        User::query()
+            ->whereKey($user->id)
+            ->lockForUpdate()
+            ->firstOrFail();
     }
 
     private function applyApprovedLeavePostCommitEffects(LeaveRequest $leaveRequest): void

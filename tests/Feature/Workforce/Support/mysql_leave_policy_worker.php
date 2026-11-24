@@ -43,6 +43,13 @@ if (! empty($payload['leave_policy_coverage']) && is_array($payload['leave_polic
     ]);
 }
 
+if (! empty($payload['leave_policy_auto_approval_enabled'])) {
+    config([
+        'leave_policy.auto_approval.enabled' => true,
+        'workforce_calendar.retroactive_leave_days' => (int) ($payload['retroactive_leave_days'] ?? 14),
+    ]);
+}
+
 DB::statement('set session innodb_lock_wait_timeout = 50');
 
 file_put_contents($readyPath, (string) getmypid());
@@ -61,6 +68,32 @@ $connectionId = DB::selectOne('select connection_id() as id')?->id;
 
 try {
     $approver = User::query()->findOrFail($approverId);
+    $action = (string) ($workerPayload['action'] ?? 'approve');
+
+    if ($action === 'submit') {
+        $agent = User::query()->findOrFail((int) ($workerPayload['agent_id'] ?? 0));
+        $day = (string) ($workerPayload['start_date'] ?? $payload['day'] ?? '');
+
+        $leave = app(LeaveRequestService::class)->submit($agent, [
+            'start_date' => $day,
+            'end_date' => (string) ($workerPayload['end_date'] ?? $day),
+            'reason' => 'Concurrent submit '.$workerKey,
+        ]);
+
+        $fresh = $leave->fresh();
+        file_put_contents($resultPath, json_encode([
+            'ok' => true,
+            'worker' => $workerKey,
+            'leave_id' => $fresh?->id,
+            'leave_status' => $fresh?->status?->value,
+            'approval_source' => $fresh?->approval_source?->value,
+            'connection_id' => $connectionId,
+            'elapsed_ms' => (int) round((microtime(true) - $started) * 1000),
+        ], JSON_THROW_ON_ERROR));
+
+        exit(0);
+    }
+
     $leaveId = (int) ($workerPayload['leave_id'] ?? 0);
     $leave = LeaveRequest::query()->findOrFail($leaveId);
 

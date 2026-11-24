@@ -150,6 +150,70 @@ if ($scenario === 'admin_pair') {
 
     $context['worker0'] = ['action' => 'approve', 'leave_id' => $pendingLeaves[1]->id, 'override' => false];
     $context['worker1'] = ['action' => 'approve', 'leave_id' => $pendingLeaves[2]->id, 'override' => false];
+} elseif ($scenario === 'concurrent_first_overlap_submit') {
+    config([
+        'leave_policy.coverage.triad_emails' => [
+            'triad-a-'.$suffix.'@test.com',
+            'triad-b-'.$suffix.'@test.com',
+            'triad-c-'.$suffix.'@test.com',
+        ],
+        'leave_policy.coverage.admin_pair_emails' => [],
+        'workforce_calendar.retroactive_leave_days' => 14,
+    ]);
+
+    User::factory()->create(['email' => 'triad-a-'.$suffix.'@test.com', 'is_active' => true]);
+    User::factory()->create(['email' => 'triad-b-'.$suffix.'@test.com', 'is_active' => true]);
+    User::factory()->create(['email' => 'triad-c-'.$suffix.'@test.com', 'is_active' => true]);
+
+    $agent = User::factory()->create(['email' => 'agent-'.$suffix.'@test.com', 'is_active' => true]);
+    $agent->assignRole(RolePermissionSeeder::ROLE_SUPPORT_SPECIALIST);
+
+    $context['day'] = '2026-08-06';
+    $context['agent_id'] = $agent->id;
+    $context['leave_policy_auto_approval_enabled'] = true;
+    $context['retroactive_leave_days'] = 14;
+    $context['worker0'] = [
+        'action' => 'submit',
+        'agent_id' => $agent->id,
+        'start_date' => $context['day'],
+        'end_date' => $context['day'],
+    ];
+    $context['worker1'] = $context['worker0'];
+} elseif ($scenario === 'concurrent_independent_submit') {
+    config([
+        'leave_policy.coverage.triad_emails' => [
+            'triad-a-'.$suffix.'@test.com',
+            'triad-b-'.$suffix.'@test.com',
+            'triad-c-'.$suffix.'@test.com',
+        ],
+        'leave_policy.coverage.admin_pair_emails' => [],
+        'workforce_calendar.retroactive_leave_days' => 14,
+    ]);
+
+    User::factory()->create(['email' => 'triad-a-'.$suffix.'@test.com', 'is_active' => true]);
+    User::factory()->create(['email' => 'triad-b-'.$suffix.'@test.com', 'is_active' => true]);
+    User::factory()->create(['email' => 'triad-c-'.$suffix.'@test.com', 'is_active' => true]);
+
+    $agentA = User::factory()->create(['email' => 'agent-a-'.$suffix.'@test.com', 'is_active' => true]);
+    $agentB = User::factory()->create(['email' => 'agent-b-'.$suffix.'@test.com', 'is_active' => true]);
+    $agentA->assignRole(RolePermissionSeeder::ROLE_SUPPORT_SPECIALIST);
+    $agentB->assignRole(RolePermissionSeeder::ROLE_SUPPORT_SPECIALIST);
+
+    $context['day'] = '2026-08-06';
+    $context['leave_policy_auto_approval_enabled'] = true;
+    $context['retroactive_leave_days'] = 14;
+    $context['worker0'] = [
+        'action' => 'submit',
+        'agent_id' => $agentA->id,
+        'start_date' => $context['day'],
+        'end_date' => $context['day'],
+    ];
+    $context['worker1'] = [
+        'action' => 'submit',
+        'agent_id' => $agentB->id,
+        'start_date' => $context['day'],
+        'end_date' => $context['day'],
+    ];
 } else {
     fwrite(STDERR, "Unknown scenario [{$scenario}].\n");
     exit(2);
