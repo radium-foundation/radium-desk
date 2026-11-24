@@ -1,5 +1,15 @@
 # Changelog
 
+## 4.1.115 — 2026-11-24 — Deploy gate fix, preship UAT evidence, hardware Needs Action (P-24-06)
+
+- **Deploy tooling (PR #421 / P-23-18):** Tier **A** Hostinger snapshot gate persists **`HOSTINGER_SNAPSHOT_GATE_BASELINE_ID`** outside the initial gate subshell so final gate cannot lose baseline identity; regression test **`hostinger-snapshot-gate-baseline.test.sh`**.
+- **Pre-shipment cancellation (PR #422 / P-23-22):** Local PHPUnit closes UAT evidence gaps — workspace CTA (**A1**), incident-job `failed()` exhaust (**E7**), feature-flag OFF→ON→OFF rollback sequence (**F**). **No production behaviour change**; **`PRE_SHIPMENT_CANCELLATION_ENABLED`** default remains **false**.
+- **Hardware fulfilment (PR #423 / P-24-04):** **Needs Action** SQL aligned with **`HardwarePhysicalStockCommitment`** (quantity-only stock); terminal completed **`refund_requests`** excluded; **`provider_rejected`** AWBs classified to **Exceptions**; regression suite **`HardwareNeedsActionClassificationRegressionTest`**.
+- **Migrations:** None since **v4.1.114**; plan **`DEPLOY_RUN_MIGRATIONS=0`**.
+- **Feature flag:** **`PRE_SHIPMENT_CANCELLATION_ENABLED`** absent or **false** by default — this release does not enable pre-shipment cancellation in production.
+- Rollback target: **v4.1.114** / `857259ad0`.
+- Release prep **P-24-06**; PRs **#421**, **#422**, **#423**.
+
 ## 4.1.114 — 2026-11-23 — Pre-shipment cancellation operator workflow (default off) (P-23-16 / PR #419)
 
 - **Pre-shipment cancellation (PR #419):** Phase 2 State **A+B** operator HTTP workflow — finance/operator routes, policy, middleware, queue views; **`ClosePreShipmentCancellationIncidentJob`** dispatched to the shared **`critical`** queue with idempotent incident-close retries.
