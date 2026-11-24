@@ -608,14 +608,6 @@
             @endif
         </div>
 
-        @if($shipment->packagePhotoRecorded() && $shipment->packagePhotoId())
-        <div class="hf-alloc-card mb-3" id="hardware-package-evidence">
-            <p class="text-muted small text-uppercase fw-semibold mb-2">Package Photo (archived)</p>
-            <p class="mb-2 text-muted small">Historical evidence from the retired upload workflow.</p>
-            <a class="btn btn-sm btn-outline-secondary" href="{{ route('inventory.hardware-fulfilments.package-evidence.show', [$fulfilment, $shipment->packagePhotoId()]) }}">View Photo</a>
-        </div>
-        @endif
-
         @endif
 
         @if(!$shipment->isExternalShipping)
