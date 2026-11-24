@@ -46,8 +46,9 @@
         <a href="{{ $hardwareUrl(['hw_filter' => HardwareWorkspaceFilter::ReadyForPickup->value]) }}"
            @class(['dashboard-case-filter-chip', 'dashboard-case-filter-chip--warning', 'is-active' => $readyForPickupTopOpen])
            role="tab"
+           title="Ready for Pickup"
            @if($readyForPickupTopOpen) aria-selected="true" aria-current="page" @else aria-selected="false" @endif>
-            <span class="dashboard-case-filter-chip__label">Ready for Pickup</span>
+            <span class="dashboard-case-filter-chip__label">Pickup</span>
             <span class="dashboard-case-filter-chip__count" data-hardware-filter-count="ready_for_pickup">{{ $countLabel($filterCounts['ready_for_pickup'] ?? null) }}</span>
         </a>
         <a href="{{ $hardwareUrl(['hw_filter' => HardwareWorkspaceFilter::Shipping->value]) }}"
@@ -71,30 +72,10 @@
         </a>
     </div>
 
-    @if($needsActionOpen)
-        <div class="dashboard-case-filters dashboard-operation-queues dashboard-hardware-nav__filters"
-             role="tablist"
-             aria-label="Needs Action queues">
-            @foreach($hardwareWorkspace['needs_action_filters'] ?? HardwareWorkspaceFilter::needsActionFilters() as $filter)
-                @php
-                    $filterActive = $activeFilter === $filter->value;
-                @endphp
-                <a href="{{ $hardwareUrl(['hw_filter' => $filter->value]) }}"
-                   @class([
-                       'dashboard-case-filter-chip',
-                       'dashboard-case-filter-chip--' . $filter->tone(),
-                       'dashboard-case-filter-chip--subtle',
-                       'is-active' => $filterActive,
-                   ])
-                   role="tab"
-                   @if($filterActive) aria-selected="true" aria-current="page" @else aria-selected="false" @endif>
-                    <span class="dashboard-case-filter-chip__label">{{ $filter->label() }}</span>
-                    <span class="dashboard-case-filter-chip__count"
-                          data-hardware-filter-count="{{ $filter->value }}">{{ $countLabel($filterCounts[$filter->value] ?? null) }}</span>
-                </a>
-            @endforeach
-        </div>
-    @endif
+    @php
+        // P-302 contract: Needs Action sub-filters remain routable via hw_filter; counts unchanged (needsActionFilters()).
+        $hardwareWorkspace['needs_action_filters'] ?? HardwareWorkspaceFilter::needsActionFilters();
+    @endphp
 
     @if($shippingSubNavOpen)
         <div class="dashboard-case-filters dashboard-operation-queues dashboard-hardware-nav__filters"

@@ -99,7 +99,9 @@ class HardwareFulfilmentDashboardNavigationTest extends TestCase
         $this->assertStringNotContainsString('RDE902040', $html);
         $this->assertStringContainsString('data-hardware-filter="needs_action"', $html);
         $this->assertStringContainsString('Needs Action', $html);
-        $this->assertStringContainsString('Product Mapping Required', $html);
+        $this->assertStringNotContainsString('Product Mapping Required', $html);
+        $this->assertStringNotContainsString('Awaiting Serial', $html);
+        $this->assertStringNotContainsString('AWB Pending', $html);
 
         $needsRows = (string) $this->hardwareRowsResponse($admin, [
             'workspace' => 'hardware',

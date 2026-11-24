@@ -510,6 +510,24 @@ body.unified-intake-primary .app-topbar [data-universal-search-form] .btn-outlin
     font-size: 1.125rem;
 }
 
+.dashboard-hardware-nav {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.75rem;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.dashboard-hardware-nav__groups {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.dashboard-hardware-nav .dashboard-shiprocket-balance {
+    margin-bottom: 0;
+}
+
 .dashboard-shiprocket-balance {
     display: flex;
     flex-wrap: wrap;
@@ -521,6 +539,8 @@ body.unified-intake-primary .app-topbar [data-universal-search-form] .btn-outlin
     border-radius: 0.65rem;
     background: var(--dashboard-card-bg);
     font-size: 0.875rem;
+    width: fit-content;
+    max-width: 100%;
 }
 
 .dashboard-shiprocket-balance__label {
