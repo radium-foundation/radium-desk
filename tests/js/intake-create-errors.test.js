@@ -41,11 +41,11 @@ describe('intake-create-errors', () => {
         )).toBe(INTAKE_CREATE_SESSION_ERROR);
     });
 
-    it('returns session-expired guidance for JSON HTTP 403', () => {
+    it('returns permission guidance for JSON HTTP 403', () => {
         expect(resolveIntakeCreateErrorMessage(
             jsonResponse(403, { message: 'This action is unauthorized.' }),
             { message: 'This action is unauthorized.' },
-        )).toBe(INTAKE_CREATE_SESSION_ERROR);
+        )).toBe('This action is unauthorized.');
     });
 
     it('returns session-expired guidance for non-json HTTP 419', () => {

@@ -143,6 +143,7 @@ use App\Http\Controllers\Workforce\ShortAttendanceReviewController;
 use App\Http\Controllers\Workforce\WorkforceMember360Controller;
 use App\Http\Controllers\Workforce\WorkRecognitionController;
 use App\Http\Controllers\Workforce360Controller;
+use App\Http\Controllers\SessionStatusController;
 use App\Http\Controllers\WorkspaceActionController;
 use App\Http\Controllers\WorkspaceComponentController;
 use Database\Seeders\RolePermissionSeeder;
@@ -163,6 +164,10 @@ Route::middleware('signed')->group(function () {
 });
 
 Route::middleware(['auth', 'active'])->group(function () {
+    Route::get('/session/status', SessionStatusController::class)
+        ->middleware('session.probe')
+        ->name('session.status');
+
     Route::prefix('driver-management/radiumbox')
         ->name('driver-management.radiumbox.')
         ->middleware('permission:'.RolePermissionSeeder::PERMISSION_DRIVERS_MANAGE_RADIUMBOX)

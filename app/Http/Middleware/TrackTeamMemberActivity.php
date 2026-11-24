@@ -23,6 +23,7 @@ class TrackTeamMemberActivity
     public function handle(Request $request, Closure $next): Response
     {
         $user = $request->user();
+        $skipPresenceSideEffects = $request->routeIs('session.status');
 
         if ($user !== null && $this->roleService->isTeamMember($user)) {
             if (
@@ -46,7 +47,7 @@ class TrackTeamMemberActivity
 
         $response = $next($request);
 
-        if ($user !== null && $request->isMethodSafe()) {
+        if ($user !== null && $request->isMethodSafe() && ! $skipPresenceSideEffects) {
             $this->activityService->recordSystemActivity($user);
             $this->presenceEngine->recordActivity(
                 $user,

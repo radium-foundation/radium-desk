@@ -9,6 +9,8 @@ use App\CentralWallet\Infrastructure\Jobs\ReconciliationDailyJob;
 use App\Enums\QueueWorkerMode;
 use App\Http\Middleware\EnsurePreShipmentCancellationEnabled;
 use App\Http\Middleware\EnsureUserIsActive;
+use App\Http\Middleware\MarkSessionStatusProbe;
+use App\Http\Middleware\SetAuthenticatedHtmlCacheControl;
 use App\Http\Middleware\TrackTeamMemberActivity;
 use App\Infrastructure\Queue\QueueRouting;
 use App\Services\Platform\PlatformHealthCache;
@@ -34,6 +36,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'active' => EnsureUserIsActive::class,
+            'session.probe' => MarkSessionStatusProbe::class,
             'role' => RoleMiddleware::class,
             'permission' => PermissionMiddleware::class,
             'role_or_permission' => RoleOrPermissionMiddleware::class,
@@ -44,6 +47,7 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
 
         $middleware->appendToGroup('web', TrackTeamMemberActivity::class);
+        $middleware->appendToGroup('web', SetAuthenticatedHtmlCacheControl::class);
     })
     ->withSchedule(function (Schedule $schedule): void {
         // Must stay first (no withoutOverlapping). Hostinger cron flock FDs are
