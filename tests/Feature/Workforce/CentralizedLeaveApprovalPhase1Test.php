@@ -3,6 +3,7 @@
 namespace Tests\Feature\Workforce;
 
 use App\Enums\LeaveRequestStatus;
+use App\Models\AuditLog;
 use App\Models\LeaveRequest;
 use App\Models\User;
 use App\Notifications\LeaveRequestSubmittedNotification;
@@ -32,6 +33,8 @@ class CentralizedLeaveApprovalPhase1Test extends TestCase
             'workforce.leave_approver.email' => 'shipra@radiumbox.com',
             'workforce_calendar.retroactive_leave_days' => 14,
         ]);
+
+        $this->withoutVite();
     }
 
     protected function tearDown(): void
@@ -150,7 +153,7 @@ class CentralizedLeaveApprovalPhase1Test extends TestCase
             'user_id' => $shipra->id,
         ]);
 
-        $audit = \App\Models\AuditLog::query()
+        $audit = AuditLog::query()
             ->where('event', 'workforce.leave.approved')
             ->where('auditable_id', $leave->id)
             ->first();
@@ -233,7 +236,7 @@ class CentralizedLeaveApprovalPhase1Test extends TestCase
         $this->leaveService->approve($agentLeave, $shipra, 'Approved agent leave');
         $this->leaveService->approve($adminLeave, $shipra, 'Approved admin leave');
 
-        $agentAudit = \App\Models\AuditLog::query()
+        $agentAudit = AuditLog::query()
             ->where('event', 'workforce.leave.approved')
             ->where('auditable_id', $agentLeave->id)
             ->first();

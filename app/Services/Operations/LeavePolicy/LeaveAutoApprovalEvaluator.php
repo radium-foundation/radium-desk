@@ -11,28 +11,21 @@ class LeaveAutoApprovalEvaluator
 {
     public function isEnabled(): bool
     {
-        if (! (bool) config('leave_policy.auto_approval.enabled', false)) {
-            return false;
-        }
+        return (bool) config('leave_policy.auto_approval.enabled', false);
+    }
 
-        if (! (bool) config('leave_policy.auto_approval.leave_balance_ledger_available', false)) {
-            return false;
-        }
-
-        return true;
+    public function balanceLedgerAvailable(): bool
+    {
+        return (bool) config('leave_policy.auto_approval.leave_balance_ledger_available', false);
     }
 
     public function blockReasonWhenDisabled(): string
     {
-        if (! (bool) config('leave_policy.auto_approval.enabled', false)) {
-            return 'Auto-approval is disabled by configuration (pilot gate).';
-        }
-
-        return 'Auto-approval requires a verified leave-balance ledger (not present in Radium Desk).';
+        return 'Auto-approval is disabled by configuration (pilot gate).';
     }
 
     /**
-     * Structural eligibility only — never approves when balance ledger unavailable.
+     * Structural eligibility only — entitlement/balance is enforced when a ledger exists.
      *
      * @return array{eligible: bool, reasons: list<string>, phase: ?string}
      */

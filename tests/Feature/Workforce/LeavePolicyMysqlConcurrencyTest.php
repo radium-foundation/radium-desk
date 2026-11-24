@@ -53,6 +53,24 @@ class LeavePolicyMysqlConcurrencyTest extends TestCase
         $this->runScenario('monthly_cap_race', repetitions: 2);
     }
 
+    public function test_concurrent_first_overlap_submissions_allow_only_one_auto_approved_row(): void
+    {
+        $this->runScenario('concurrent_first_overlap_submit', repetitions: 2);
+    }
+
+    public function test_concurrent_independent_agents_both_auto_approve(): void
+    {
+        $context = $this->prepareContextOrSkip('concurrent_independent_submit', 'r1');
+        $results = $this->runWorkers($context);
+
+        $this->assertCount(2, $results);
+        foreach ($results as $result) {
+            $this->assertTrue($result['ok'] ?? false, json_encode($result));
+            $this->assertSame(LeaveRequestStatus::Approved->value, $result['leave_status'] ?? null);
+            $this->assertSame('auto', $result['approval_source'] ?? null);
+        }
+    }
+
     private function runScenario(string $scenario, int $repetitions): void
     {
         for ($run = 1; $run <= $repetitions; $run++) {
@@ -95,6 +113,27 @@ class LeavePolicyMysqlConcurrencyTest extends TestCase
                     "select count(*) from leave_requests where status = '".LeaveRequestStatus::Approved->value."' and start_date = ".$this->safePdo()->quote($day),
                 )->fetchColumn();
                 $this->assertLessThanOrEqual(2, (int) $onDay);
+            }
+
+            if ($scenario === 'concurrent_first_overlap_submit') {
+                $agentId = (int) ($context['agent_id'] ?? 0);
+                $day = (string) $context['day'];
+                $pdo = $this->safePdo();
+
+                $totalRows = (int) $pdo->query(
+                    'select count(*) from leave_requests where user_id = '.$agentId,
+                )->fetchColumn();
+                $this->assertSame(1, $totalRows);
+
+                $approvedRows = (int) $pdo->query(
+                    "select count(*) from leave_requests where user_id = {$agentId} and status = '"
+                    .LeaveRequestStatus::Approved->value."' and start_date = ".$pdo->quote($day),
+                )->fetchColumn();
+                $this->assertSame(1, $approvedRows);
+
+                $success = $successes[0];
+                $this->assertSame(LeaveRequestStatus::Approved->value, $success['leave_status'] ?? null);
+                $this->assertSame('auto', $success['approval_source'] ?? null);
             }
         }
     }
