@@ -35,6 +35,15 @@ return [
         'enabled' => (bool) env('REFUNDS_STATUTORY_ADJUSTMENT_ENABLED', false),
     ],
 
+    'wallet_auto_approval' => [
+        'enabled' => filter_var(
+            env('REFUNDS_WALLET_AUTO_APPROVAL_ENABLED', false),
+            FILTER_VALIDATE_BOOLEAN,
+        ),
+        'spokes' => env('REFUNDS_WALLET_AUTO_APPROVAL_SPOKES', 'rdservice.in,radiumbox.com'),
+        'max_amount' => env('REFUNDS_WALLET_AUTO_APPROVAL_MAX_AMOUNT', '2000'),
+    ],
+
     'profiles' => [
         'full_refund' => [
             'label' => 'Full Refund',

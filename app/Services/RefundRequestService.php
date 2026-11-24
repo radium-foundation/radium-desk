@@ -21,6 +21,7 @@ use App\Services\Refunds\DeskFirstWalletRefundInterruptedCompletionRecorder;
 use App\Services\Refunds\HardwareOrderRefundCaseGate;
 use App\Services\Refunds\RefundExecutionInputGuard;
 use App\Services\Refunds\RefundExecutorResolver;
+use App\Services\Refunds\RefundWalletAutoApprovalEvaluator;
 use App\Services\Refunds\WalletRefundDestinationResolver;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -41,6 +42,7 @@ class RefundRequestService
         private readonly DeskFirstWalletRefundCompletionGate $deskFirstWalletRefundCompletionGate,
         private readonly DeskFirstWalletRefundInterruptedCompletionRecorder $deskFirstInterruptedCompletionRecorder,
         private readonly HardwareOrderRefundCaseGate $hardwareRefundCaseGate,
+        private readonly RefundWalletAutoApprovalEvaluator $walletAutoApprovalEvaluator,
     ) {}
 
     /**
@@ -50,7 +52,9 @@ class RefundRequestService
     {
         $referenceNo = $this->referenceService->generate();
 
-        $refund = DB::transaction(function () use ($user, $data, $referenceNo): RefundRequest {
+        $autoApproved = false;
+
+        $refund = DB::transaction(function () use ($user, $data, $referenceNo, $request, &$autoApproved): RefundRequest {
             $order = Order::query()->lockForUpdate()->findOrFail($data['order_id']);
             $this->hardwareRefundCaseGate->assertMayCreateRefund($order, $data);
 
@@ -88,7 +92,7 @@ class RefundRequestService
 
             $channels = $this->normalizeChannels($data['communication_channels'] ?? ['email', 'whatsapp']);
 
-            return RefundRequest::query()->create([
+            $refund = RefundRequest::query()->create([
                 'order_id' => $order->id,
                 'incident_id' => $data['incident_id'] ?? null,
                 'reference_no' => $referenceNo,
@@ -112,6 +116,16 @@ class RefundRequestService
                 'deduction_snapshot' => $calculation->toArray(),
                 'requested_by' => $user->id,
             ]);
+
+            $autoApproved = $this->attemptAutoWalletApprovalWithinCreateTransaction(
+                refund: $refund,
+                order: $order,
+                user: $user,
+                calculation: $calculation,
+                request: $request,
+            );
+
+            return $refund->fresh() ?? $refund;
         });
 
         if ($refund->incident_id !== null) {
@@ -156,7 +170,9 @@ class RefundRequestService
             request: $request,
         );
 
-        $this->notificationService->notifyApproversOfSubmission($refund->fresh(['requester']) ?? $refund);
+        if (! $autoApproved) {
+            $this->notificationService->notifyApproversOfSubmission($refund->fresh(['requester']) ?? $refund);
+        }
 
         if ($refund->incident_id === null) {
             $this->dashboardBroadcastService->kpisUpdated($user);
@@ -236,69 +252,15 @@ class RefundRequestService
 
             $this->calculationService->assertValid($calculation);
 
-            $oldValues = $this->reviewSnapshot($locked);
-
-            $locked->update([
-                'status' => RefundStatus::PendingExecution,
-                'approved_refund_method' => $method,
-                'amount' => $calculation->refundAmount,
-                'refund_amount' => $calculation->refundAmount,
-                'total_paid_amount' => $calculation->totalPaidAmount,
-                'already_refunded_amount' => $calculation->alreadyRefundedAmount,
-                'maximum_refundable' => $calculation->maximumRefundable,
-                'cancellation_charges' => $calculation->cancellationCharges,
-                'gst_on_cancellation' => $calculation->gstOnCancellation,
-                'other_deduction' => $calculation->otherDeduction,
-                'total_deduction' => $calculation->totalDeduction,
-                'deduction_profile_key' => $calculation->deductionProfileKey,
-                'partial_difference_reason' => $calculation->partialDifferenceReason,
-                'partial_difference_notes' => $calculation->partialDifferenceNotes,
-                'deduction_snapshot' => $calculation->toArray(),
-                'review_notes' => $data['review_notes'] ?? null,
-                'reviewed_by' => $user->id,
-                'reviewed_at' => now(),
-            ]);
-
-            $fresh = $locked->fresh();
-
-            $this->auditLogService->log(
-                userId: $user->id,
-                event: 'refund.approved',
-                auditable: $fresh,
-                oldValues: $oldValues,
-                newValues: array_merge($this->reviewSnapshot($fresh), $this->financialSnapshot($fresh), [
-                    'approved_refund_method' => $method->value,
-                    'reference_no' => $fresh->reference_no,
-                ]),
+            return $this->promoteRefundToPendingExecution(
+                locked: $locked,
+                user: $user,
+                method: $method,
+                calculation: $calculation,
                 request: $request,
+                automatic: false,
+                manualReviewNotes: $data['review_notes'] ?? null,
             );
-
-            $this->auditLogService->log(
-                userId: $user->id,
-                event: 'refund.execution_started',
-                auditable: $fresh,
-                newValues: [
-                    'status' => $fresh->status->value,
-                    'approved_refund_method' => $method->value,
-                    'reference_no' => $fresh->reference_no,
-                ],
-                request: $request,
-            );
-
-            // Legacy event for existing consumers.
-            $this->auditLogService->log(
-                userId: $user->id,
-                event: 'approved',
-                auditable: $fresh,
-                oldValues: $oldValues,
-                newValues: $this->reviewSnapshot($fresh),
-                request: $request,
-            );
-
-            app(TeamMemberActivityService::class)
-                ->recordCaseAction($user);
-
-            return $fresh;
         });
 
         $this->dashboardBroadcastService->kpisUpdated($user);
@@ -521,6 +483,129 @@ class RefundRequestService
     public function calculationPreview(Order $order, array $input = [], ?RefundRequest $exclude = null): RefundCalculationResult
     {
         return $this->calculationService->calculate($order, $input, $exclude);
+    }
+
+    private function attemptAutoWalletApprovalWithinCreateTransaction(
+        RefundRequest $refund,
+        Order $order,
+        User $user,
+        RefundCalculationResult $calculation,
+        Request $request,
+    ): bool {
+        $evaluation = $this->walletAutoApprovalEvaluator->evaluate($refund, $order, $calculation);
+
+        if (! $evaluation['eligible']) {
+            return false;
+        }
+
+        $locked = RefundRequest::query()->lockForUpdate()->findOrFail($refund->id);
+        $this->ensurePendingApproval($locked);
+
+        $this->walletRefundDestinations->assertWalletApprovalAllowed($order->order_id);
+
+        $approvalCalculation = $this->calculationService->calculate($order, [
+            'deduction_profile_key' => RefundDeductionProfile::FullRefund->value,
+            'refund_amount' => $locked->refund_amount ?? $locked->amount,
+        ], $locked);
+
+        $this->calculationService->assertValid($approvalCalculation);
+
+        $this->promoteRefundToPendingExecution(
+            locked: $locked,
+            user: $user,
+            method: ApprovedRefundMethod::Wallet,
+            calculation: $approvalCalculation,
+            request: $request,
+            automatic: true,
+        );
+
+        return true;
+    }
+
+    private function promoteRefundToPendingExecution(
+        RefundRequest $locked,
+        User $user,
+        ApprovedRefundMethod $method,
+        RefundCalculationResult $calculation,
+        Request $request,
+        bool $automatic,
+        ?string $manualReviewNotes = null,
+    ): RefundRequest {
+        $oldValues = $this->reviewSnapshot($locked);
+
+        $locked->update([
+            'status' => RefundStatus::PendingExecution,
+            'approved_refund_method' => $method,
+            'amount' => $calculation->refundAmount,
+            'refund_amount' => $calculation->refundAmount,
+            'total_paid_amount' => $calculation->totalPaidAmount,
+            'already_refunded_amount' => $calculation->alreadyRefundedAmount,
+            'maximum_refundable' => $calculation->maximumRefundable,
+            'cancellation_charges' => $calculation->cancellationCharges,
+            'gst_on_cancellation' => $calculation->gstOnCancellation,
+            'other_deduction' => $calculation->otherDeduction,
+            'total_deduction' => $calculation->totalDeduction,
+            'deduction_profile_key' => $calculation->deductionProfileKey,
+            'partial_difference_reason' => $calculation->partialDifferenceReason,
+            'partial_difference_notes' => $calculation->partialDifferenceNotes,
+            'deduction_snapshot' => $calculation->toArray(),
+            'review_notes' => $automatic
+                ? RefundWalletAutoApprovalEvaluator::REVIEW_NOTES
+                : $manualReviewNotes,
+            'reviewed_by' => $automatic ? null : $user->id,
+            'reviewed_at' => now(),
+        ]);
+
+        $fresh = $locked->fresh();
+
+        $approvalAudit = array_merge($this->reviewSnapshot($fresh), $this->financialSnapshot($fresh), [
+            'approved_refund_method' => $method->value,
+            'reference_no' => $fresh->reference_no,
+        ]);
+
+        if ($automatic) {
+            $approvalAudit['approval_source'] = 'auto';
+        }
+
+        $this->auditLogService->log(
+            userId: $user->id,
+            event: 'refund.approved',
+            auditable: $fresh,
+            oldValues: $oldValues,
+            newValues: $approvalAudit,
+            request: $request,
+        );
+
+        $this->auditLogService->log(
+            userId: $user->id,
+            event: 'refund.execution_started',
+            auditable: $fresh,
+            newValues: array_merge([
+                'status' => $fresh->status->value,
+                'approved_refund_method' => $method->value,
+                'reference_no' => $fresh->reference_no,
+            ], $automatic ? ['approval_source' => 'auto'] : []),
+            request: $request,
+        );
+
+        $this->auditLogService->log(
+            userId: $user->id,
+            event: 'approved',
+            auditable: $fresh,
+            oldValues: $oldValues,
+            newValues: array_merge(
+                $this->reviewSnapshot($fresh),
+                $automatic ? ['approval_source' => 'auto'] : [],
+            ),
+            request: $request,
+        );
+
+        if (! $automatic) {
+            app(TeamMemberActivityService::class)
+                ->recordCaseAction($user);
+        }
+
+        return $fresh;
     }
 
     private function ensurePendingApproval(RefundRequest $refund): void
