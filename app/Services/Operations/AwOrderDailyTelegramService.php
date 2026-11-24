@@ -9,6 +9,11 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
+/**
+ * Superadmin-only previous-day AW- order count Telegram digest.
+ *
+ * Delivery policy: at-least-once (not exactly-once). See docs/operations-aw-order-daily-telegram.md.
+ */
 final class AwOrderDailyTelegramService
 {
     private const LOCK_SECONDS = 120;
@@ -89,13 +94,13 @@ final class AwOrderDailyTelegramService
             self::LOCK_SECONDS,
         );
 
-        if (! $lock->block(5)) {
-            Log::info('AW order daily Telegram: concurrent send skipped.', [
+        if (! $lock->get()) {
+            Log::warning('AW order daily Telegram: lock contention; retryable failure.', [
                 'report_date' => $reportDateKey,
                 'user_id' => $recipient->id,
             ]);
 
-            return 'skipped';
+            return 'failed';
         }
 
         try {

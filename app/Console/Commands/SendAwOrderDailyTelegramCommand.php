@@ -9,7 +9,7 @@ class SendAwOrderDailyTelegramCommand extends Command
 {
     protected $signature = 'operations:send-aw-order-daily-telegram';
 
-    protected $description = 'Send previous-day AW- order count to superadmin Telegram recipients (feature-flagged)';
+    protected $description = 'Send previous-day AW- order count to superadmin Telegram recipients (feature-flagged; at-least-once delivery; see docs/operations-aw-order-daily-telegram.md)';
 
     public function handle(AwOrderDailyTelegramService $service): int
     {

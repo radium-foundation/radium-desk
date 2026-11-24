@@ -1,0 +1,60 @@
+name: AW order daily Telegram RIP
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'app/Console/Commands/SendAwOrderDailyTelegramCommand.php'
+      - 'app/Models/OperationalTelegramDeliveryReceipt.php'
+      - 'app/Services/Operations/AwOrderDailyCountService.php'
+      - 'app/Services/Operations/AwOrderDailyTelegramDeliveryGate.php'
+      - 'app/Services/Operations/AwOrderDailyTelegramService.php'
+      - 'app/Services/Operations/SuperAdminTelegramRecipientService.php'
+      - 'app/Services/Notifications/NotificationRecipientResolver.php'
+      - 'app/Services/Notifications/NotificationAuthorityService.php'
+      - 'app/Services/Telegram/TelegramBotService.php'
+      - 'bootstrap/app.php'
+      - 'config/operations_aw_orders.php'
+      - 'database/migrations/2026_11_24_120000_create_operational_telegram_delivery_receipts_table.php'
+      - 'docs/operations-aw-order-daily-telegram.md'
+      - 'tests/Feature/Operations/AwOrderDailyTelegramTest.php'
+      - '.github/workflows/aw-order-daily-telegram-rip.yml'
+      - '.env.example'
+  push:
+    branches:
+      - main
+    paths:
+      - 'app/Console/Commands/SendAwOrderDailyTelegramCommand.php'
+      - 'app/Models/OperationalTelegramDeliveryReceipt.php'
+      - 'app/Services/Operations/AwOrderDailyCountService.php'
+      - 'app/Services/Operations/AwOrderDailyTelegramDeliveryGate.php'
+      - 'app/Services/Operations/AwOrderDailyTelegramService.php'
+      - 'app/Services/Operations/SuperAdminTelegramRecipientService.php'
+      - 'bootstrap/app.php'
+      - 'config/operations_aw_orders.php'
+      - 'database/migrations/2026_11_24_120000_create_operational_telegram_delivery_receipts_table.php'
+      - 'tests/Feature/Operations/AwOrderDailyTelegramTest.php'
+      - '.github/workflows/aw-order-daily-telegram-rip.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  aw-order-daily-telegram-rip:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+          tools: composer:v2
+          extensions: imagick, zip, gd, sqlite3, mbstring, xml, curl, intl
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: PHPUnit (AW order daily Telegram)
+        run: ./vendor/bin/phpunit tests/Feature/Operations/AwOrderDailyTelegramTest.php

@@ -252,6 +252,67 @@ class AwOrderDailyTelegramTest extends TestCase
         );
     }
 
+    public function test_lock_contention_counts_as_failed_not_skipped(): void
+    {
+        config(['operations_aw_orders.daily_telegram.enabled' => true]);
+        Http::fake();
+        Carbon::setTestNow(Carbon::parse('2026-11-24 08:00:00', 'Asia/Kolkata'));
+        $user = $this->createSuperAdminWithTelegram('900060');
+
+        $held = Cache::lock('operations:aw-order-daily:2026-11-23:user:'.$user->id, 120);
+        $this->assertTrue($held->get());
+
+        $result = app(AwOrderDailyTelegramService::class)->sendPreviousDaySummary();
+
+        $held->release();
+
+        $this->assertSame(1, $result['failed']);
+        $this->assertSame(0, $result['skipped']);
+        $this->assertSame(0, $result['sent']);
+        Http::assertNothingSent();
+        $this->assertDatabaseCount('operational_telegram_delivery_receipts', 0);
+    }
+
+    public function test_command_exits_failure_when_lock_contention_blocks_delivery(): void
+    {
+        config(['operations_aw_orders.daily_telegram.enabled' => true]);
+        Http::fake();
+        Carbon::setTestNow(Carbon::parse('2026-11-24 08:00:00', 'Asia/Kolkata'));
+        $user = $this->createSuperAdminWithTelegram('900062');
+
+        $held = Cache::lock('operations:aw-order-daily:2026-11-23:user:'.$user->id, 120);
+        $this->assertTrue($held->get());
+
+        $exit = Artisan::call('operations:send-aw-order-daily-telegram');
+
+        $held->release();
+
+        $this->assertSame(1, $exit);
+    }
+
+    public function test_retry_after_lock_contention_can_deliver_when_no_receipt(): void
+    {
+        config(['operations_aw_orders.daily_telegram.enabled' => true]);
+        Carbon::setTestNow(Carbon::parse('2026-11-24 08:00:00', 'Asia/Kolkata'));
+        $user = $this->createSuperAdminWithTelegram('900061');
+
+        $held = Cache::lock('operations:aw-order-daily:2026-11-23:user:'.$user->id, 120);
+        $this->assertTrue($held->get());
+
+        $first = app(AwOrderDailyTelegramService::class)->sendPreviousDaySummary();
+        $held->release();
+
+        $this->assertSame(1, $first['failed']);
+
+        Http::fake([
+            'api.telegram.org/*' => Http::response(['ok' => true, 'result' => ['message_id' => 61]], 200),
+        ]);
+
+        $second = app(AwOrderDailyTelegramService::class)->sendPreviousDaySummary();
+        $this->assertSame(1, $second['sent']);
+        Http::assertSentCount(1);
+    }
+
     public function test_schedule_is_daily_at_eight_ist(): void
     {
         /** @var Schedule $schedule */
