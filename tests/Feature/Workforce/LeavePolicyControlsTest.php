@@ -153,14 +153,24 @@ class LeavePolicyControlsTest extends TestCase
         ]);
     }
 
-    public function test_auto_approval_disabled_without_balance_ledger(): void
+    public function test_auto_approval_enabled_without_balance_ledger_for_structural_pilot(): void
     {
         config(['leave_policy.auto_approval.enabled' => true]);
 
         $evaluator = app(LeaveAutoApprovalEvaluator::class);
 
+        $this->assertTrue($evaluator->isEnabled());
+        $this->assertFalse($evaluator->balanceLedgerAvailable());
+    }
+
+    public function test_auto_approval_disabled_when_feature_flag_off(): void
+    {
+        config(['leave_policy.auto_approval.enabled' => false]);
+
+        $evaluator = app(LeaveAutoApprovalEvaluator::class);
+
         $this->assertFalse($evaluator->isEnabled());
-        $this->assertStringContainsString('leave-balance', strtolower($evaluator->blockReasonWhenDisabled()));
+        $this->assertStringContainsString('disabled', strtolower($evaluator->blockReasonWhenDisabled()));
     }
 
     public function test_authorized_override_cannot_bypass_admin_pair_coverage_on_approve(): void

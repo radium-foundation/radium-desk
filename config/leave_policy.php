@@ -55,8 +55,8 @@ return [
     | Phased auto-approval
     |--------------------------------------------------------------------------
     |
-    | Disabled by default: no leave-balance ledger exists (P-19-10 VERIFIED).
-    | When enabled, only structural checks run — not entitlement/balance.
+    | Disabled by default. Phase 1 pilot_1 runs structural checks only (no balance ledger).
+    | Future entitlement auto-approval may require leave_balance_ledger_available.
     |
     */
     'auto_approval' => [

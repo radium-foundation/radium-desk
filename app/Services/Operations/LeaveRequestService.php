@@ -3,6 +3,7 @@
 namespace App\Services\Operations;
 
 use App\Contracts\Workforce\WorkforceEventPublisher;
+use App\Data\Operations\LeavePolicyEvaluation;
 use App\Data\Workforce\WorkforceEvent;
 use App\Enums\LeaveApprovalSource;
 use App\Enums\LeaveDuration;
@@ -18,6 +19,7 @@ use App\Notifications\LeaveRequestDecisionNotification;
 use App\Notifications\LeaveRequestSubmittedNotification;
 use App\Services\AuditLogService;
 use App\Services\Notifications\NotificationAuthorityService;
+use App\Services\Operations\LeavePolicy\LeaveAutoApprovalEvaluator;
 use App\Services\Operations\LeavePolicy\LeaveCoverageGuard;
 use App\Services\Operations\LeavePolicy\LeaveManualExceptionGuard;
 use App\Services\Operations\LeavePolicy\LeavePolicyOrchestrator;
@@ -40,7 +42,10 @@ class LeaveRequestService
         private readonly LeavePolicyOrchestrator $leavePolicyOrchestrator,
         private readonly LeaveCoverageGuard $leaveCoverageGuard,
         private readonly LeaveManualExceptionGuard $leaveManualExceptionGuard,
+        private readonly LeaveAutoApprovalEvaluator $leaveAutoApprovalEvaluator,
     ) {}
+
+    private const AUTO_APPROVAL_REVIEW_NOTES = 'Auto-approved by leave policy rules';
 
     public function earliestPermittedStartDate(?Carbon $at = null): Carbon
     {
@@ -62,7 +67,9 @@ class LeaveRequestService
             ?? LeaveDuration::FullDay;
         $manualException = filter_var($data['manual_exception'] ?? false, FILTER_VALIDATE_BOOL);
 
-        $leaveRequest = DB::transaction(function () use ($requester, $data, $startDate, $endDate, $duration, $manualException): LeaveRequest {
+        $autoApproved = false;
+
+        $leaveRequest = DB::transaction(function () use ($requester, $data, $startDate, $endDate, $duration, $manualException, &$autoApproved): LeaveRequest {
             $this->lockActiveLeaveRequestsFor($requester);
             $this->leaveCoverageGuard->lockCoverageGroupRows($requester);
 
@@ -130,10 +137,27 @@ class LeaveRequestService
                 ],
             );
 
+            $autoApproved = $this->attemptAutoApprovalWithinSubmitTransaction(
+                leaveRequest: $leaveRequest,
+                requester: $requester,
+                policy: $policy,
+                duration: $duration,
+                manualException: $manualException,
+            );
+
+            if ($autoApproved) {
+                $leaveRequest = $leaveRequest->fresh(['user', 'reviewer']);
+            }
+
             return $leaveRequest;
         });
 
-        $this->notifyApproversOfSubmission($leaveRequest);
+        if ($autoApproved) {
+            $this->applyApprovedLeavePostCommitEffects($leaveRequest);
+            $this->notifyRequesterOfDecision($leaveRequest);
+        } else {
+            $this->notifyApproversOfSubmission($leaveRequest);
+        }
 
         return $leaveRequest;
     }
@@ -371,17 +395,7 @@ class LeaveRequestService
             return $lockedLeaveRequest;
         });
 
-        $requester = $leaveRequest->user;
-
-        if ($requester !== null) {
-            $this->attendanceRegisterService->refreshDateRange(
-                user: $requester,
-                startDate: $leaveRequest->policyEffectiveStart(),
-                endDate: $leaveRequest->policyEffectiveEnd(),
-            );
-        }
-
-        $this->publishLeaveEvent(WorkforceEventType::LeaveApproved, $leaveRequest);
+        $this->applyApprovedLeavePostCommitEffects($leaveRequest);
         $this->notifyRequesterOfDecision($leaveRequest);
 
         return $leaveRequest;
@@ -634,6 +648,103 @@ class LeaveRequestService
             ])
             ->lockForUpdate()
             ->get();
+    }
+
+    private function applyApprovedLeavePostCommitEffects(LeaveRequest $leaveRequest): void
+    {
+        $requester = $leaveRequest->user;
+
+        if ($requester !== null) {
+            $this->attendanceRegisterService->refreshDateRange(
+                user: $requester,
+                startDate: $leaveRequest->policyEffectiveStart(),
+                endDate: $leaveRequest->policyEffectiveEnd(),
+            );
+        }
+
+        $this->publishLeaveEvent(WorkforceEventType::LeaveApproved, $leaveRequest);
+    }
+
+    private function attemptAutoApprovalWithinSubmitTransaction(
+        LeaveRequest $leaveRequest,
+        User $requester,
+        LeavePolicyEvaluation $policy,
+        LeaveDuration $duration,
+        bool $manualException,
+    ): bool {
+        if (! $this->leaveAutoApprovalEvaluator->isEnabled()) {
+            return false;
+        }
+
+        $structural = $this->leaveAutoApprovalEvaluator->evaluatePhaseStructure(
+            $requester,
+            $policy,
+            $duration,
+            $manualException,
+        );
+
+        if (! $structural['eligible']) {
+            return false;
+        }
+
+        $lockedLeaveRequest = $this->lockLeaveRequest($leaveRequest);
+
+        if ($lockedLeaveRequest->status !== LeaveRequestStatus::Pending) {
+            return false;
+        }
+
+        $effectiveStart = $lockedLeaveRequest->policyEffectiveStart();
+        $effectiveEnd = $lockedLeaveRequest->policyEffectiveEnd();
+
+        try {
+            $this->leaveCoverageGuard->assertCoverageAllows(
+                $requester,
+                $effectiveStart,
+                $effectiveEnd,
+                excludeLeaveRequestIds: [$lockedLeaveRequest->id],
+                countPendingPeerLeaves: false,
+            );
+        } catch (ValidationException) {
+            return false;
+        }
+
+        $this->assertNoOverlappingLeave(
+            user: $requester,
+            startDate: $effectiveStart,
+            endDate: $effectiveEnd,
+            excludeLeaveRequestId: $lockedLeaveRequest->id,
+            statuses: [LeaveRequestStatus::Approved],
+        );
+
+        $lockedLeaveRequest->fill([
+            'status' => LeaveRequestStatus::Approved,
+            'reviewed_by' => null,
+            'reviewed_at' => now(),
+            'review_notes' => self::AUTO_APPROVAL_REVIEW_NOTES,
+            'approval_source' => LeaveApprovalSource::Auto,
+        ])->save();
+
+        $lockedLeaveRequest = $lockedLeaveRequest->fresh(['user', 'reviewer']);
+
+        $this->auditLeaveEvent(
+            event: WorkforceAuditEvent::LeaveApproved,
+            userId: $requester->id,
+            leaveRequest: $lockedLeaveRequest,
+            newValues: [
+                'reviewer_id' => null,
+                'approved_by' => null,
+                'actor' => $requester->id,
+                'self_approved' => false,
+                'auto_approved' => true,
+                'reviewed_at' => $lockedLeaveRequest->reviewed_at?->toIso8601String(),
+                'status' => $lockedLeaveRequest->status->value,
+                'review_notes' => $lockedLeaveRequest->review_notes,
+                'approval_source' => LeaveApprovalSource::Auto->value,
+                'auto_approval_phase' => $structural['phase'],
+            ],
+        );
+
+        return true;
     }
 
     /**
