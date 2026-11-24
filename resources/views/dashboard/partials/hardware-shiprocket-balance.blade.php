@@ -22,7 +22,7 @@
         };
         $checkedMinutes = $shiprocketBalance->checkedMinutesAgo();
     @endphp
-    <div @class(['dashboard-shiprocket-balance', $toneClass, 'dashboard-shiprocket-balance--stale' => $shiprocketBalance->isStale])
+    <div @class(['dashboard-shiprocket-balance', 'w-fit', $toneClass, 'dashboard-shiprocket-balance--stale' => $shiprocketBalance->isStale])
          role="status"
          aria-live="polite"
          data-shiprocket-balance>

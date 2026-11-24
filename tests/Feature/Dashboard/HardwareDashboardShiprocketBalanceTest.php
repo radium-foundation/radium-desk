@@ -55,6 +55,7 @@ class HardwareDashboardShiprocketBalanceTest extends TestCase
             ->assertSee('Shiprocket Balance')
             ->assertSee('Loading…')
             ->assertSee('data-shiprocket-balance', false)
+            ->assertSee('w-fit', false)
             ->assertDontSee('₹9,084.26');
 
         $this->assertSame(0, $this->gateway->walletBalanceCalls);
