@@ -1,5 +1,14 @@
 # Changelog
 
+## 4.1.118 — 2026-11-24 — Phase 1 structural leave auto-approval (default off) (P-24-38 / PR #428)
+
+- **Workforce leave (PR #428 / P-24-33):** Phase 1 structural auto-approval on submit when policy rules pass; per-user row serialization on submit/update; expanded PHPUnit coverage including MySQL concurrency harness for overlap races.
+- **Feature flag:** **`WORKFORCE_LEAVE_AUTO_APPROVAL_ENABLED`** default **false** — production manual leave approval remains unchanged after this release; separate Owner authorization required before enablement.
+- **Database:** **`DEPLOY_RUN_MIGRATIONS=0`** — no schema changes applied in production by this deploy; existing AW Telegram receipts migration index-name fix (**PR #427**) ships in code only until a separately authorized migrate step.
+- **Protected configuration:** **`AW_ORDER_DAILY_TELEGRAM_ENABLED`** and **`PRE_SHIPMENT_CANCELLATION_ENABLED`** must remain **unchanged** (enabled on production per prior Owner authorization).
+- Rollback target: **v4.1.117** / `3cd06ba93`.
+- Release prep **P-24-38**; application baseline **`21aab73da`** (merges **#428**, **#427**).
+
 ## 4.1.115 — 2026-11-24 — Deploy gate fix, preship UAT evidence, hardware Needs Action (P-24-06)
 
 - **Deploy tooling (PR #421 / P-23-18):** Tier **A** Hostinger snapshot gate persists **`HOSTINGER_SNAPSHOT_GATE_BASELINE_ID`** outside the initial gate subshell so final gate cannot lose baseline identity; regression test **`hostinger-snapshot-gate-baseline.test.sh`**.
