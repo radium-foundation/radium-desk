@@ -6,12 +6,9 @@
     @php
         use App\Services\DashboardPersonalizationService;
         use App\Services\Operations\OperationsRoleService;
-        use Database\Seeders\RolePermissionSeeder;
 
         $operationQueue = $operationQueue ?? DashboardPersonalizationService::QUEUE_ACTION_REQUIRED;
         $usesAgentDashboard = auth()->user() && app(OperationsRoleService::class)->usesSupportQueues(auth()->user());
-        $showMissionControlQuickNav = auth()->user()?->hasAnyRole(RolePermissionSeeder::ADMIN_TEAM_ROLES)
-            && auth()->user()?->can('operations-dashboard.view');
         $isHardwareDashboard = ($operationQueue ?? '') === DashboardPersonalizationService::QUEUE_HARDWARE;
     @endphp
 
@@ -88,10 +85,6 @@
                      data-agent-recent-customers-list></div>
             </div>
         </div>
-
-        @if($showMissionControlQuickNav)
-            @include('navigation.mission-control-workspace-nav', ['active' => 'operations'])
-        @endif
 
         <div id="dashboard-kpi-strip" class="dashboard-kpi-strip-host mb-1">
             @include('dashboard.partials.kpi-strip', [
