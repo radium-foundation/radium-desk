@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Broadcasting\ResilientRealtimeBroadcaster;
 use App\Contracts\AI\AIProvider;
 use App\Contracts\Customer360\CaseIntelligenceLanguageEnhancer;
 use App\Contracts\HardwareFulfilment\BoxFulfilmentCallbackGateway;
@@ -205,6 +206,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->scoped(SettingService::class);
         $this->app->scoped(SystemSettingsAdminCollection::class);
         $this->app->scoped(AssignReferenceBatchCoalescer::class);
+        $this->app->singleton(ResilientRealtimeBroadcaster::class);
         $this->app->scoped(DashboardBroadcastService::class);
         $this->app->scoped(OperationsQueueClassifier::class);
         $this->app->scoped(ServiceCaseAutomationStatusService::class);

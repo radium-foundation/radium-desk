@@ -2,6 +2,7 @@
 
 namespace App\Services\HybridRealtime;
 
+use App\Broadcasting\ResilientRealtimeBroadcaster;
 use App\Data\OperatorAlert;
 use App\Data\RealtimeNotification;
 use App\Enums\NotificationPriority;
@@ -18,6 +19,7 @@ class HybridRealtimeNotificationBroadcaster
         private readonly HybridRealtimeFeatureService $hybridRealtime,
         private readonly HybridRealtimeNotificationDeliveryService $delivery,
         private readonly BonvoiceIncomingCallLatency $incomingCallLatency,
+        private readonly ResilientRealtimeBroadcaster $realtimeBroadcaster,
     ) {}
 
     public function incomingCallsEnabled(): bool
@@ -69,7 +71,7 @@ class HybridRealtimeNotificationBroadcaster
                 'incident_id' => $call['incident_id'] ?? null,
             ]);
 
-            broadcast(new IncomingCallReceived($freshRecipient, $call));
+            $this->realtimeBroadcaster->dispatch(new IncomingCallReceived($freshRecipient, $call));
         });
     }
 
@@ -102,7 +104,7 @@ class HybridRealtimeNotificationBroadcaster
                 return;
             }
 
-            broadcast(new RealtimeNotificationDelivered($freshRecipient, $notification));
+            $this->realtimeBroadcaster->dispatch(new RealtimeNotificationDelivered($freshRecipient, $notification));
         });
     }
 

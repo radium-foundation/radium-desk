@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Broadcasting\ResilientRealtimeBroadcaster;
+use App\Events\Dashboard\DashboardBroadcastEvent;
 use App\Events\Dashboard\DashboardKpisUpdated;
 use App\Events\Dashboard\HybridIncidentsUpdated;
 use App\Events\Dashboard\NotificationCreated;
@@ -41,6 +43,7 @@ class DashboardBroadcastService
     public function __construct(
         private readonly DashboardService $dashboardService,
         private readonly HybridRealtimeFeatureService $hybridRealtime,
+        private readonly ResilientRealtimeBroadcaster $realtimeBroadcaster,
     ) {}
 
     /**
@@ -272,7 +275,7 @@ class DashboardBroadcastService
                 continue;
             }
 
-            broadcast(new ReferenceNumbersUpdated(
+            $this->realtimeBroadcaster->dispatch(new ReferenceNumbersUpdated(
                 recipient: $recipient,
                 incidentIds: $visibleIds,
                 updatedAt: $updatedAt,
@@ -404,7 +407,7 @@ class DashboardBroadcastService
                     continue;
                 }
 
-                broadcast(new $eventClass(
+                $this->realtimeBroadcaster->dispatch(new $eventClass(
                     recipient: $recipient,
                     incidents: $payloadIncidents,
                 ));
@@ -474,7 +477,7 @@ class DashboardBroadcastService
 
             $latestNotifications = $freshRecipient->notifications()->latest()->limit(10)->get();
 
-            broadcast(new NotificationCreated(
+            $this->realtimeBroadcaster->dispatch(new NotificationCreated(
                 recipient: $freshRecipient,
                 notificationId: (string) $notification->id,
                 title: $notification->data['title'] ?? 'Notification',
@@ -513,7 +516,7 @@ class DashboardBroadcastService
                 return;
             }
 
-            broadcast(new NotificationCreated(
+            $this->realtimeBroadcaster->dispatch(new NotificationCreated(
                 recipient: $freshRecipient,
                 notificationId: 'incoming-call-'.$interaction['call_id'].'-'.$interaction['status'],
                 title: '',
@@ -537,7 +540,7 @@ class DashboardBroadcastService
         foreach ($recipients as $recipient) {
             $metrics = $this->dashboardService->liveReverbMetricsFor($recipient, $batch);
 
-            broadcast(new DashboardKpisUpdated(
+            $this->realtimeBroadcaster->dispatch(new DashboardKpisUpdated(
                 recipient: $recipient,
                 kpiStripHtml: $metrics['kpi_strip_html'],
                 serviceCaseFilterCountVariants: $metrics['service_case_filter_count_variants'],
@@ -546,7 +549,7 @@ class DashboardBroadcastService
     }
 
     /**
-     * @param  class-string<\App\Events\Dashboard\DashboardBroadcastEvent>  $eventClass
+     * @param  class-string<DashboardBroadcastEvent>  $eventClass
      */
     private function broadcastRowUpdate(
         Incident $incident,
@@ -563,7 +566,7 @@ class DashboardBroadcastService
 
             $payload = app(DashboardLiveRowVisibilityService::class)->rowBroadcastPayload($incident, $recipient);
 
-            broadcast(new $eventClass(
+            $this->realtimeBroadcaster->dispatch(new $eventClass(
                 recipient: $recipient,
                 incident: $incident,
                 incidentQueue: $payload['queue'],
