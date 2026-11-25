@@ -15,6 +15,7 @@ use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Broadcast;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Mockery;
 use Tests\TestCase;
@@ -107,43 +108,52 @@ class QueuedRealtimeBroadcastIsolationTest extends TestCase
         ]);
     }
 
-    public function test_resilient_broadcaster_logs_and_does_not_throw_when_dispatch_fails(): void
+    public function test_resilient_broadcaster_survives_dispatch_failures_without_throwing(): void
     {
         Log::spy();
 
         Broadcast::shouldReceive('event')->andThrow(new \RuntimeException('queue unavailable'));
 
-        $broadcaster = app(ResilientRealtimeBroadcaster::class);
-        $broadcaster->dispatch(new NotificationCreated(
-            recipient: User::factory()->make(),
-            notificationId: 'id',
-            title: 't',
-            message: 'm',
-            url: '/',
-            unreadCount: 0,
-            bellHtml: '',
-        ));
+        $recipient = User::factory()->create();
+        $recipient->notifications()->create([
+            'id' => 'fail-open-notif-1',
+            'type' => 'Tests\\Support\\QueuedBroadcastTestNotification',
+            'data' => [
+                'title' => 'Persisted',
+                'message' => 'Unchanged',
+                'url' => '/dashboard',
+            ],
+        ]);
 
+        $jobsBefore = DB::table('jobs')->count();
+
+        $threw = false;
+
+        try {
+            app(ResilientRealtimeBroadcaster::class)->dispatch(new NotificationCreated(
+                recipient: $recipient,
+                notificationId: 'n-fail-1',
+                title: 't',
+                message: 'm',
+                url: '/',
+                unreadCount: 1,
+                bellHtml: '',
+            ));
+        } catch (\Throwable) {
+            $threw = true;
+        }
+
+        $this->assertFalse($threw, 'ResilientRealtimeBroadcaster must not propagate enqueue failures.');
+        $this->assertDatabaseCount('notifications', 1);
+        $this->assertSame($jobsBefore, DB::table('jobs')->count());
         Log::shouldHaveReceived('warning')
             ->once()
-            ->with('realtime.broadcast.dispatch_failed', Mockery::type('array'));
-    }
-
-    public function test_resilient_broadcaster_survives_dispatch_failures_without_throwing(): void
-    {
-        Broadcast::shouldReceive('event')->andThrow(new \RuntimeException('queue unavailable'));
-
-        app(ResilientRealtimeBroadcaster::class)->dispatch(new NotificationCreated(
-            recipient: User::factory()->make(),
-            notificationId: 'n-fail-1',
-            title: 't',
-            message: 'm',
-            url: '/',
-            unreadCount: 0,
-            bellHtml: '',
-        ));
-
-        $this->addToAssertionCount(1);
+            ->with(
+                'realtime.broadcast.dispatch_failed',
+                Mockery::on(fn (array $context): bool => ($context['event'] ?? '') === NotificationCreated::class
+                    && ($context['exception'] ?? '') === \RuntimeException::class
+                    && str_contains((string) ($context['message'] ?? ''), 'queue unavailable')),
+            );
     }
 
     public function test_incoming_call_event_enqueues_on_critical_queue(): void
