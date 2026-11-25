@@ -11,7 +11,7 @@ import { handleHttpAuthStatus } from './core/session-lifecycle';
 const SESSION_REASON = 'customer-360-drawer';
 
 const c360Fetch = async (url, options) => {
-    const response = await c360Fetch(url, options);
+    const response = await fetch(url, options);
     const authResult = await handleHttpAuthStatus(response);
 
     if (authResult.action === 'redirect' || authResult.action === 'reload') {
@@ -1698,7 +1698,7 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
             });
 
             if (response === null || !response.ok) {
-                logCustomer360Failure(url, response.status, 'initial-load');
+                logCustomer360Failure(url, response?.status ?? null, 'initial-load');
                 setError('Unable to load customer details. Please try again.');
 
                 return;
@@ -1746,7 +1746,7 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
             });
 
             if (response === null || !response.ok) {
-                logCustomer360Failure(url, response.status, 'drawer-refresh');
+                logCustomer360Failure(url, response?.status ?? null, 'drawer-refresh');
                 showToast?.('Unable to refresh customer details. Please try again.');
 
                 return;

@@ -21,6 +21,7 @@ describe('session-lifecycle', () => {
     });
 
     afterEach(() => {
+        resetSessionLifecycleForTests();
         vi.unstubAllGlobals();
         vi.restoreAllMocks();
     });

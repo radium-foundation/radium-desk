@@ -603,27 +603,27 @@ describe('initCustomer360Drawer', () => {
         const pageRoot = setupDashboard();
         const showToast = vi.fn();
 
-        global.fetch = vi.fn()
-            .mockResolvedValueOnce({
-                ok: true,
-                text: async () => '<div data-customer-360-content>Loaded overview</div>',
-            })
-            .mockResolvedValueOnce({
-                ok: false,
-                status: 500,
-                text: async () => '',
-            });
+        global.fetch = vi.fn(async () => ({
+            ok: true,
+            text: async () => '<div data-customer-360-content>Loaded overview</div>',
+        }));
 
         const drawer = initCustomer360Drawer({ pageRoot, showToast });
 
         await drawer.open('42', 'SC-001');
+
+        fetch.mockImplementation(async () => ({
+            ok: false,
+            status: 500,
+            text: async () => '',
+        }));
 
         document.dispatchEvent(new CustomEvent('customer360:refresh', {
             detail: { incidentId: '42' },
         }));
 
         await vi.waitFor(() => {
-            expect(fetch).toHaveBeenCalledTimes(2);
+            expect(showToast).toHaveBeenCalledWith('Unable to refresh customer details. Please try again.');
         });
 
         const errorState = document.querySelector('[data-customer-360-error]');
