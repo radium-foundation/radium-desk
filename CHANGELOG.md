@@ -1,5 +1,14 @@
 # Changelog
 
+## 4.1.122 — 2026-11-25 — Cashfree webhook: queue OrderPaid journal + RadiumBox confirm (P-25-28 / PR #434)
+
+- **Cashfree webhooks (PR #434 / P-25-28):** Move **`PostOrderPaidJournal`** and **`ConfirmRadiumBoxPaymentOnOrderPaid`** to queued listeners on **`OrderPaid`** (`ShouldQueue` + `ShouldQueueAfterCommit`, **`critical`** queue, retries/backoff). Reduces LSAPI thread occupancy on payment ingestion; **`CorrelateHardwareCashfreePayment`** remains synchronous on the webhook path.
+- **Migrations:** **`DEPLOY_RUN_MIGRATIONS=0`** — none applied on this deploy.
+- **Seeder:** **`DEPLOY_RUN_ROLE_PERMISSION_SEED=0`** — **`RolePermissionSeeder`** not run.
+- **Protected configuration:** Preserve **`REFUNDS_WALLET_AUTO_APPROVAL_ENABLED`**, **`WORKFORCE_LEAVE_AUTO_APPROVAL_ENABLED`**, **`AW_ORDER_DAILY_TELEGRAM_ENABLED`**, **`PRE_SHIPMENT_CANCELLATION_ENABLED`** as on production (all **true** at P-25-31 deploy authorization).
+- Rollback target: **v4.1.121** / `69950963d`.
+- Application baseline **`9d4c6d693f6f08ce2fa205b327bbeff1ea302936`** (merge **#434**); release prep **P-25-31**.
+
 ## 4.1.119 — 2026-11-25 — Wallet refund auto-approval (dormant) + session lifecycle (P-25-06 / PR #429, PR #430)
 
 - **Wallet refund auto-approval (PR #429 / P-24-41):** Phase 1 evaluator and Desk-First integration ships **dormant** behind **`REFUNDS_WALLET_AUTO_APPROVAL_ENABLED`** (default **false**). **No** automatic approval execution, ledger credit, or financial operation in production without separate Owner authorization.
