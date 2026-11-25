@@ -8,6 +8,7 @@ use App\Services\Cashfree\CashfreeWebhookForensicLogger;
 use App\Services\Cashfree\CashfreeWebhookPayloadParser;
 use App\Services\Cashfree\CashfreeWebhookProcessorService;
 use App\Services\Cashfree\CashfreeWebhookSignatureVerifier;
+use App\Services\Cashfree\CashfreeWebhookStageTiming;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -20,35 +21,49 @@ class CashfreeWebhookController extends Controller
         private readonly CashfreeWebhookProcessorService $webhookProcessorService,
         private readonly CashfreeWebhookSignatureVerifier $signatureVerifier,
         private readonly CashfreeWebhookForensicLogger $forensicLogger,
+        private readonly CashfreeWebhookStageTiming $stageTiming,
     ) {}
 
     public function handle(Request $request): JsonResponse
     {
+        $this->stageTiming->activate();
         $startedAt = hrtime(true);
 
         try {
             $webhookLog = $this->storeWebhook($request);
+            $this->stageTiming->associateWebhookLogId($webhookLog->id);
+            $this->stageTiming->completeStage('store_webhook', 'ok');
 
             if (config('cashfree.verify_signature')) {
                 if (! $this->signatureVerifier->hasRequiredHeaders($request)) {
+                    $this->stageTiming->completeStage('signature_verification', 'error', [
+                        'error_category' => 'signature_headers_missing',
+                    ]);
                     $this->markSignatureVerificationFailed($webhookLog);
                     $this->logForensicOutcome($request, $webhookLog->fresh(), 'signature_headers_missing', $startedAt);
 
-                    return response()->json(['status' => 'error'], 400);
+                    return $this->respondHandoff(response()->json(['status' => 'error'], 400), 'error');
                 }
 
                 if (! $this->signatureVerifier->verify($request)) {
+                    $this->stageTiming->completeStage('signature_verification', 'error', [
+                        'error_category' => 'signature_invalid',
+                    ]);
                     $this->markSignatureVerificationFailed($webhookLog);
                     $this->logForensicOutcome($request, $webhookLog->fresh(), 'signature_invalid', $startedAt);
 
-                    return response()->json(['status' => 'error'], 401);
+                    return $this->respondHandoff(response()->json(['status' => 'error'], 401), 'error');
                 }
+
+                $this->stageTiming->completeStage('signature_verification', 'ok');
+            } else {
+                $this->stageTiming->completeStage('signature_verification', 'skipped');
             }
 
             $processedLog = $this->webhookProcessorService->process($webhookLog);
             $this->logForensicOutcome($request, $processedLog, 'ok', $startedAt);
 
-            return response()->json(['status' => 'ok'], 200);
+            return $this->respondHandoff(response()->json(['status' => 'ok'], 200), 'ok');
         } catch (Throwable $exception) {
             Log::error('[Cashfree Webhook] Processing failed', [
                 'timestamp' => now()->toIso8601String(),
@@ -58,8 +73,15 @@ class CashfreeWebhookController extends Controller
                 'exception' => $exception::class,
             ]);
 
-            return response()->json(['status' => 'error'], 500);
+            return $this->respondHandoff(response()->json(['status' => 'error'], 500), 'error');
         }
+    }
+
+    private function respondHandoff(JsonResponse $response, string $outcome): JsonResponse
+    {
+        $this->stageTiming->responseHandoff($response->getStatusCode(), $outcome);
+
+        return $response;
     }
 
     private function logForensicOutcome(
@@ -68,8 +90,10 @@ class CashfreeWebhookController extends Controller
         string $outcome,
         int $startedAt,
     ): void {
-        $durationMs = (hrtime(true) - $startedAt) / 1e6;
-        $this->forensicLogger->logHandled($request, $webhookLog, $outcome, $durationMs);
+        $this->stageTiming->measureStage('forensic_logging', function () use ($request, $webhookLog, $outcome, $startedAt): void {
+            $durationMs = (hrtime(true) - $startedAt) / 1e6;
+            $this->forensicLogger->logHandled($request, $webhookLog, $outcome, $durationMs);
+        });
     }
 
     private function markSignatureVerificationFailed(CashfreeWebhookLog $webhookLog): void

@@ -59,6 +59,7 @@ class CashfreeWebhookProcessorService
         private readonly RadiumBoxOrderSearchResponseMapper $fieldNormalizer,
         private readonly OrderIdentityLifecycleService $identityLifecycle,
         private readonly CashfreeOrderCentralCustomerBindingService $cashfreeOrderCentralCustomerBindingService,
+        private readonly CashfreeWebhookStageTiming $stageTiming,
     ) {}
 
     public function process(CashfreeWebhookLog $webhookLog): CashfreeWebhookLog
@@ -70,16 +71,29 @@ class CashfreeWebhookProcessorService
         ]);
 
         if (! $this->payloadParser->isSuccessfulPayment($payload)) {
-            return $webhookLog->fresh();
+            return $this->stageTiming->measureStage(
+                'fresh_incident',
+                fn (): CashfreeWebhookLog => $webhookLog->fresh(),
+            );
         }
 
         try {
-            $this->assertSystemUserPreflight($webhookLog);
+            $this->stageTiming->measureStage(
+                'preflight',
+                function () use ($webhookLog): bool {
+                    $this->assertSystemUserPreflight($webhookLog);
+
+                    return true;
+                },
+            );
             $deferredContext = $this->persistSuccessfulPayment($webhookLog, $payload);
         } catch (Throwable $exception) {
             $this->markWebhookFailed($webhookLog, $exception);
 
-            return $webhookLog->fresh();
+            return $this->stageTiming->measureStage(
+                'fresh_incident',
+                fn (): CashfreeWebhookLog => $webhookLog->fresh(),
+            );
         }
 
         if ($deferredContext !== null) {
@@ -87,11 +101,16 @@ class CashfreeWebhookProcessorService
 
             $order = Order::query()->find($deferredContext->orderId);
             if ($order !== null) {
-                OrderPaid::dispatch($order);
+                $this->stageTiming->measureOrderPaidDispatch(function () use ($order): void {
+                    OrderPaid::dispatch($order);
+                });
             }
         }
 
-        return $webhookLog->fresh(['incident']);
+        return $this->stageTiming->measureStage(
+            'fresh_incident',
+            fn (): CashfreeWebhookLog => $webhookLog->fresh(['incident']),
+        );
     }
 
     /**
@@ -112,12 +131,17 @@ class CashfreeWebhookProcessorService
             $attempt++;
 
             try {
-                return $this->attemptPersistSuccessfulPayment($webhookLog, $payload);
+                $result = $this->attemptPersistSuccessfulPayment($webhookLog, $payload);
+                $this->stageTiming->recordPersistAttemptSuccess($attempt);
+
+                return $result;
             } catch (QueryException $exception) {
                 if ($this->isDuplicateOrderIdViolation($exception)) {
                     $resolved = $this->attemptRecoverFromDuplicateOrderId($webhookLog, $payload);
 
                     if ($resolved !== null) {
+                        $this->stageTiming->recordPersistAttemptSuccess($attempt);
+
                         return $resolved;
                     }
                 }
@@ -125,6 +149,11 @@ class CashfreeWebhookProcessorService
                 if (! $this->isRetryableContention($exception) || $attempt >= $maxAttempts) {
                     throw $exception;
                 }
+
+                $this->stageTiming->recordPersistRetryAttempt(
+                    $attempt,
+                    CashfreeWebhookStageTiming::classifyQueryException($exception),
+                );
 
                 Log::warning('[Cashfree Webhook] Retrying payment persistence after DB contention.', [
                     'webhook_log_id' => $webhookLog->id,
@@ -155,7 +184,24 @@ class CashfreeWebhookProcessorService
             throw new RuntimeException('Cashfree webhook payload is missing cf_payment_id.');
         }
 
-        $existingIncident = $this->findExistingIncidentForPayment($cfPaymentId);
+        /** @var array{existingIncident: ?Incident, existingOrder: ?Order} $lookup */
+        $lookup = $this->stageTiming->measureStage(
+            'payment_lookup',
+            function () use ($cfPaymentId, $payload): array {
+                $existingIncident = $this->findExistingIncidentForPayment($cfPaymentId);
+                $businessOrderId = $this->payloadParser->orderId($payload);
+                $existingOrder = $businessOrderId !== null
+                    ? $this->findExistingOrderByBusinessOrderId($businessOrderId)
+                    : null;
+
+                return [
+                    'existingIncident' => $existingIncident,
+                    'existingOrder' => $existingOrder,
+                ];
+            },
+        );
+
+        $existingIncident = $lookup['existingIncident'];
 
         if ($existingIncident !== null) {
             $this->attemptBindForExistingPaidOrder($existingIncident, $payload, $cfPaymentId);
@@ -164,10 +210,7 @@ class CashfreeWebhookProcessorService
             return null;
         }
 
-        $businessOrderId = $this->payloadParser->orderId($payload);
-        $existingOrder = $businessOrderId !== null
-            ? $this->findExistingOrderByBusinessOrderId($businessOrderId)
-            : null;
+        $existingOrder = $lookup['existingOrder'];
 
         if ($existingOrder !== null) {
             return $this->linkPaymentToExistingOrder($webhookLog, $payload, $cfPaymentId, $existingOrder);
@@ -180,7 +223,7 @@ class CashfreeWebhookProcessorService
         // FOR UPDATE is released before order/incident/outbox writes begin.
         $referenceNo = $this->incidentReferenceService->generate();
 
-        return DB::transaction(function () use ($webhookLog, $payload, $cfPaymentId, $referenceNo, $systemUser): ?CashfreeWebhookDeferredContext {
+        return $this->runPaymentTransaction(function () use ($webhookLog, $payload, $cfPaymentId, $referenceNo, $systemUser): ?CashfreeWebhookDeferredContext {
             $existingIncident = $this->findExistingIncidentForPayment($cfPaymentId);
 
             if ($existingIncident !== null) {
@@ -236,10 +279,49 @@ class CashfreeWebhookProcessorService
                 actorId: $systemUser->id,
             );
 
-            $this->outboxWriter->writeDeferredOperations($deferredContext);
+            $this->stageTiming->measureStage(
+                'outbox_writes',
+                function () use ($deferredContext): bool {
+                    $this->outboxWriter->writeDeferredOperations($deferredContext);
+
+                    return true;
+                },
+            );
 
             return $deferredContext;
         });
+    }
+
+    /**
+     * @template TReturn
+     *
+     * @param  callable(): TReturn  $callback
+     * @return TReturn
+     */
+    private function runPaymentTransaction(callable $callback)
+    {
+        if (! $this->stageTiming->isActive()) {
+            return DB::transaction($callback);
+        }
+
+        $result = DB::transaction(function () use ($callback) {
+            $this->stageTiming->beginTransactionPersistence();
+
+            try {
+                $value = $callback();
+                $this->stageTiming->markTransactionPersistenceComplete();
+
+                return $value;
+            } catch (Throwable $throwable) {
+                $this->stageTiming->markTransactionPersistenceComplete('error');
+
+                throw $throwable;
+            }
+        });
+
+        $this->stageTiming->markTransactionCommitComplete();
+
+        return $result;
     }
 
     private function isRetryableContention(QueryException $exception): bool
@@ -327,7 +409,7 @@ class CashfreeWebhookProcessorService
         Order $existingOrder,
         ?User $systemUser = null,
     ): ?CashfreeWebhookDeferredContext {
-        return DB::transaction(function () use ($webhookLog, $payload, $cfPaymentId, $existingOrder, $systemUser): ?CashfreeWebhookDeferredContext {
+        return $this->runPaymentTransaction(function () use ($webhookLog, $payload, $cfPaymentId, $existingOrder, $systemUser): ?CashfreeWebhookDeferredContext {
             $existingIncident = $this->findExistingIncidentForPayment($cfPaymentId);
 
             if ($existingIncident !== null) {
@@ -378,10 +460,12 @@ class CashfreeWebhookProcessorService
 
             $linkedOrderId = $linkedOrder->id;
             DB::afterCommit(function () use ($linkedOrderId): void {
-                $freshOrder = Order::query()->find($linkedOrderId);
-                if ($freshOrder !== null) {
-                    OrderPaid::dispatch($freshOrder);
-                }
+                $this->stageTiming->measureOrderPaidDispatch(function () use ($linkedOrderId): void {
+                    $freshOrder = Order::query()->find($linkedOrderId);
+                    if ($freshOrder !== null) {
+                        OrderPaid::dispatch($freshOrder);
+                    }
+                });
             });
 
             return null;
@@ -835,6 +919,11 @@ class CashfreeWebhookProcessorService
             'processed_at' => now(),
         ]);
 
-        return $webhookLog->fresh(['incident']);
+        $this->stageTiming->completeStage('mark_processed', 'ok');
+
+        return $this->stageTiming->measureStage(
+            'fresh_incident',
+            fn (): CashfreeWebhookLog => $webhookLog->fresh(['incident']),
+        );
     }
 }

@@ -50,6 +50,7 @@ use App\Services\Automation\Handlers\AutoCloseActionHandler;
 use App\Services\Automation\Handlers\NotificationActionHandler;
 use App\Services\Automation\Handlers\NotifyTeamActionHandler;
 use App\Services\Bonvoice\BonvoiceIncomingCallLatency;
+use App\Services\Cashfree\CashfreeWebhookStageTiming;
 use App\Services\ChangelogService;
 use App\Services\CommunicationActions\CommunicationActionAvailabilityService;
 use App\Services\CommunicationActions\CommunicationActionEligibilityService;
@@ -173,6 +174,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        $this->app->scoped(CashfreeWebhookStageTiming::class);
+
         $this->app->singleton(RadiumBoxRequestCache::class);
         $this->app->singleton(BonvoiceIncomingCallLatency::class);
         $this->app->singleton(Customer360TimelineRequestCache::class);
