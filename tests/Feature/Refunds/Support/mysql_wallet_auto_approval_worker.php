@@ -6,6 +6,7 @@ use App\Enums\RefundDeductionProfile;
 use App\Models\Order;
 use App\Models\RefundRequest;
 use App\Models\User;
+use App\Services\RefundCalculationService;
 use App\Services\RefundRequestService;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
@@ -109,9 +110,105 @@ try {
         exit(0);
     }
 
+    if ($action === 'auto_promote') {
+        $refund = RefundRequest::query()->findOrFail((int) ($payload['refund_id'] ?? 0));
+        $order = Order::query()->findOrFail($refund->order_id);
+        $promoted = null;
+
+        try {
+            for ($attempt = 1; $attempt <= 3; $attempt++) {
+                try {
+                    DB::transaction(function () use ($service, $agent, $refund, $order, $request, &$promoted): void {
+                        $lockedOrder = Order::query()->lockForUpdate()->findOrFail($order->id);
+                        $calculation = app(RefundCalculationService::class)->calculate($lockedOrder, [
+                            'deduction_profile_key' => RefundDeductionProfile::FullRefund->value,
+                            'refund_amount' => $refund->refund_amount ?? $refund->amount,
+                        ], $refund);
+
+                        $reflection = new ReflectionMethod(
+                            RefundRequestService::class,
+                            'attemptAutoWalletApprovalWithinCreateTransaction',
+                        );
+                        $reflection->setAccessible(true);
+                        $didPromote = (bool) $reflection->invoke(
+                            $service,
+                            $refund,
+                            $lockedOrder,
+                            $agent,
+                            $calculation,
+                            $request,
+                        );
+
+                        if (! $didPromote) {
+                            throw ValidationException::withMessages([
+                                'refund' => 'Automatic wallet promotion was not eligible for this refund.',
+                            ]);
+                        }
+
+                        $promoted = $refund->fresh();
+                    });
+                    break;
+                } catch (QueryException $exception) {
+                    $isDeadlock = str_contains($exception->getMessage(), 'Deadlock')
+                        || (string) $exception->getCode() === '40001';
+                    if (! $isDeadlock || $attempt === 3) {
+                        throw $exception;
+                    }
+                    usleep(25_000 * $attempt);
+                }
+            }
+
+            $fresh = $promoted;
+            file_put_contents($resultPath, json_encode([
+                'ok' => true,
+                'worker' => $workerLabel,
+                'refund_id' => $fresh?->id,
+                'refund_status' => $fresh?->status?->value,
+                'approved_method' => $fresh?->approved_refund_method?->value,
+                'approval_source' => 'auto',
+                'connection_id' => $connectionId,
+                'elapsed_ms' => (int) round((microtime(true) - $started) * 1000),
+            ], JSON_THROW_ON_ERROR));
+        } catch (ValidationException $exception) {
+            file_put_contents($resultPath, json_encode([
+                'ok' => false,
+                'validation' => true,
+                'worker' => $workerLabel,
+                'message' => $exception->getMessage(),
+                'connection_id' => $connectionId,
+                'elapsed_ms' => (int) round((microtime(true) - $started) * 1000),
+            ], JSON_THROW_ON_ERROR));
+        } catch (QueryException $exception) {
+            file_put_contents($resultPath, json_encode([
+                'ok' => false,
+                'validation' => true,
+                'deadlock' => true,
+                'worker' => $workerLabel,
+                'message' => $exception->getMessage(),
+                'connection_id' => $connectionId,
+                'elapsed_ms' => (int) round((microtime(true) - $started) * 1000),
+            ], JSON_THROW_ON_ERROR));
+        }
+
+        exit(0);
+    }
+
     if ($action === 'approve') {
         $ops = User::query()->findOrFail((int) ($payload['ops_user_id'] ?? 0));
-        $refund = RefundRequest::query()->findOrFail((int) ($payload['refund_id'] ?? 0));
+        $refundId = (int) ($workerPayload['refund_id'] ?? $payload['refund_id'] ?? 0);
+        if ($refundId === 0) {
+            file_put_contents($resultPath, json_encode([
+                'ok' => false,
+                'validation' => true,
+                'worker' => $workerLabel,
+                'message' => 'Refund id is required for manual approve.',
+                'connection_id' => $connectionId,
+                'elapsed_ms' => (int) round((microtime(true) - $started) * 1000),
+            ], JSON_THROW_ON_ERROR));
+            exit(0);
+        }
+
+        $refund = RefundRequest::query()->findOrFail($refundId);
 
         try {
             $approved = $service->approve(

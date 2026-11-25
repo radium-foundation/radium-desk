@@ -127,6 +127,46 @@ if ($scenario === 'dual_create' || $scenario === 'rollback_probe') {
         'worker0' => ['action' => 'approve'],
         'worker1' => ['action' => 'approve'],
     ]);
+} elseif ($scenario === 'auto_create_vs_manual_approve') {
+    $seed = wallet_auto_approval_seed_order($agent, 'RD'.strtoupper(substr($suffix, 0, 6)), '1400.00');
+    config(['refunds.wallet_auto_approval.enabled' => false]);
+
+    $payload = [
+        'order_id' => $seed['order_id'],
+        'deduction_profile_key' => RefundDeductionProfile::FullRefund->value,
+        'reason' => 'Pending refund before auto/manual race.',
+        'remarks' => 'Auto create vs manual approve.',
+        'customer_preferred_method' => CustomerPreferredRefundMethod::Wallet->value,
+    ];
+
+    $pending = app(RefundRequestService::class)->create($agent, $payload, Request::create('/'));
+    config(['refunds.wallet_auto_approval.enabled' => true]);
+
+    $context = array_merge($context, $seed, [
+        'refund_id' => $pending->id,
+        'worker0' => ['action' => 'create'],
+        'worker1' => ['action' => 'approve'],
+    ]);
+} elseif ($scenario === 'auto_promote_vs_manual_approve') {
+    $seed = wallet_auto_approval_seed_order($agent, 'RD'.strtoupper(substr($suffix, 0, 6)), '1350.00');
+    config(['refunds.wallet_auto_approval.enabled' => false]);
+
+    $payload = [
+        'order_id' => $seed['order_id'],
+        'deduction_profile_key' => RefundDeductionProfile::FullRefund->value,
+        'reason' => 'Pending refund for auto promotion race.',
+        'remarks' => 'Auto promotion vs manual approve.',
+        'customer_preferred_method' => CustomerPreferredRefundMethod::Wallet->value,
+    ];
+
+    $pending = app(RefundRequestService::class)->create($agent, $payload, Request::create('/'));
+    config(['refunds.wallet_auto_approval.enabled' => true]);
+
+    $context = array_merge($context, $seed, [
+        'refund_id' => $pending->id,
+        'worker0' => ['action' => 'auto_promote'],
+        'worker1' => ['action' => 'approve'],
+    ]);
 } else {
     fwrite(STDERR, "Unknown scenario [{$scenario}].\n");
     exit(2);
