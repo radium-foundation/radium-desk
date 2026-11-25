@@ -1,5 +1,15 @@
 # Changelog
 
+## 4.1.119 — 2026-11-25 — Wallet refund auto-approval (dormant) + session lifecycle (P-25-06 / PR #429, PR #430)
+
+- **Wallet refund auto-approval (PR #429 / P-24-41):** Phase 1 evaluator and Desk-First integration ships **dormant** behind **`REFUNDS_WALLET_AUTO_APPROVAL_ENABLED`** (default **false**). **No** automatic approval execution, ledger credit, or financial operation in production without separate Owner authorization.
+- **Session lifecycle (PR #430 / P-25-02–05):** Read-only **`GET /session/status`** probe (no session DB write / no presence side effects); authenticated HTML **`Cache-Control`**; shared frontend **401/419/403** handling with multi-tab logout; attendance-tracked-only presence heartbeat; Customer 360 **`c360Fetch`** wiring fix and direct Vitest entry-point coverage.
+- **Migrations:** **`DEPLOY_RUN_MIGRATIONS=0`** — none applied on this deploy.
+- **Seeder:** **`DEPLOY_RUN_ROLE_PERMISSION_SEED=0`** — **`RolePermissionSeeder`** not run.
+- **Protected configuration:** **`REFUNDS_WALLET_AUTO_APPROVAL_ENABLED=false`** (required); preserve **`WORKFORCE_LEAVE_AUTO_APPROVAL_ENABLED`**, **`AW_ORDER_DAILY_TELEGRAM_ENABLED`**, **`PRE_SHIPMENT_CANCELLATION_ENABLED`** as on production.
+- Rollback target: **v4.1.118** / `c69fea249`.
+- Release prep **P-25-06**; bundle with prior **v4.1.118** baseline for planned combined release record.
+
 ## 4.1.118 — 2026-11-24 — Phase 1 structural leave auto-approval (default off) (P-24-38 / PR #428)
 
 - **Workforce leave (PR #428 / P-24-33):** Phase 1 structural auto-approval on submit when policy rules pass; per-user row serialization on submit/update; expanded PHPUnit coverage including MySQL concurrency harness for overlap races.
