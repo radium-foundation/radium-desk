@@ -2,6 +2,7 @@
 
 namespace App\Services\Alerts;
 
+use App\Broadcasting\ResilientRealtimeBroadcaster;
 use App\Data\OperatorAlert;
 use App\Data\OperatorAlertDispatchResult;
 use App\Enums\NotificationChannelType;
@@ -27,6 +28,7 @@ class OperatorAlertDispatcher
         private readonly NotificationAuthorityService $notificationAuthority,
         private readonly TelegramBotService $telegramBot,
         private readonly HybridRealtimeNotificationBroadcaster $hybridRealtimeBroadcaster,
+        private readonly ResilientRealtimeBroadcaster $realtimeBroadcaster,
     ) {}
 
     /**
@@ -137,7 +139,7 @@ class OperatorAlertDispatcher
     {
         $payloadAlert = $this->applyDeliveryFlags($alert);
 
-        broadcast(new OperatorAlertRaised(
+        $this->realtimeBroadcaster->dispatch(new OperatorAlertRaised(
             recipient: $recipient,
             alert: $payloadAlert,
         ));

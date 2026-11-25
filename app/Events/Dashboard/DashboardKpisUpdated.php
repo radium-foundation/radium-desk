@@ -2,18 +2,20 @@
 
 namespace App\Events\Dashboard;
 
+use App\Broadcasting\Concerns\UsesQueuedRealtimeBroadcast;
 use App\Models\User;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
-use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
-class DashboardKpisUpdated implements ShouldBroadcastNow
+class DashboardKpisUpdated implements ShouldBroadcast
 {
     use Dispatchable;
     use InteractsWithSockets;
     use SerializesModels;
+    use UsesQueuedRealtimeBroadcast;
 
     /**
      * @param  array<string, array<string, int>>  $serviceCaseFilterCountVariants

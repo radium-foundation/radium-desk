@@ -2,19 +2,21 @@
 
 namespace App\Events\Dashboard;
 
+use App\Broadcasting\Concerns\UsesQueuedRealtimeBroadcast;
 use App\Models\Incident;
 use App\Models\User;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
-use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
-abstract class DashboardBroadcastEvent implements ShouldBroadcastNow
+abstract class DashboardBroadcastEvent implements ShouldBroadcast
 {
     use Dispatchable;
     use InteractsWithSockets;
     use SerializesModels;
+    use UsesQueuedRealtimeBroadcast;
 
     /**
      * @param  array<string, string>  $listActions

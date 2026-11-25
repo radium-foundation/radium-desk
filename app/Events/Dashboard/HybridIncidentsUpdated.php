@@ -2,10 +2,11 @@
 
 namespace App\Events\Dashboard;
 
+use App\Broadcasting\Concerns\UsesQueuedRealtimeBroadcast;
 use App\Models\User;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
-use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
@@ -19,11 +20,12 @@ use Illuminate\Queue\SerializesModels;
  *     updated_at: string
  * }
  */
-abstract class HybridIncidentsUpdated implements ShouldBroadcastNow
+abstract class HybridIncidentsUpdated implements ShouldBroadcast
 {
     use Dispatchable;
     use InteractsWithSockets;
     use SerializesModels;
+    use UsesQueuedRealtimeBroadcast;
 
     /**
      * @param  list<HybridIncidentPayload>  $incidents

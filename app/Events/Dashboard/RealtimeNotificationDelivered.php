@@ -2,19 +2,21 @@
 
 namespace App\Events\Dashboard;
 
+use App\Broadcasting\Concerns\UsesQueuedCriticalRealtimeBroadcast;
 use App\Data\RealtimeNotification;
 use App\Models\User;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
-use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
-class RealtimeNotificationDelivered implements ShouldBroadcastNow
+class RealtimeNotificationDelivered implements ShouldBroadcast
 {
     use Dispatchable;
     use InteractsWithSockets;
     use SerializesModels;
+    use UsesQueuedCriticalRealtimeBroadcast;
 
     public function __construct(
         public User $recipient,
