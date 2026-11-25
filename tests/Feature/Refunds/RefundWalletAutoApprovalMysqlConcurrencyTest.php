@@ -6,6 +6,7 @@ use PDO;
 use PDOException;
 use PHPUnit\Framework\Attributes\Group;
 use Symfony\Component\Process\Process;
+use Tests\Feature\Refunds\Support\WalletAutoApprovalConcurrencyMysqlAssertions;
 use Tests\Feature\Refunds\Support\WalletAutoApprovalMysqlGate;
 use Tests\TestCase;
 
@@ -85,6 +86,77 @@ class RefundWalletAutoApprovalMysqlConcurrencyTest extends TestCase
                 json_encode($failure),
             );
         }
+    }
+
+    public function test_concurrent_auto_create_vs_manual_approve_on_same_order_serializes_to_single_winner(): void
+    {
+        foreach (['ac1', 'ac2', 'ac3'] as $suffix) {
+            $context = $this->prepareContextOrSkip('auto_create_vs_manual_approve', $suffix);
+            $results = $this->runWorkers($context);
+
+            $this->assertIndependentConnections($results);
+            $winner = WalletAutoApprovalConcurrencyMysqlAssertions::assertExactlyOneApprovalSuccess($results);
+            $this->assertSame('pending_execution', $winner['refund_status'] ?? null);
+
+            $pdo = $this->safePdo();
+            $refundId = (int) $context['refund_id'];
+            $orderId = (int) $context['order_id'];
+            WalletAutoApprovalConcurrencyMysqlAssertions::assertSingleApprovalWinner($pdo, $refundId, $orderId);
+
+            $refundRows = (int) $pdo->query('select count(*) from refund_requests where order_id = '.$orderId)->fetchColumn();
+            $this->assertLessThanOrEqual(2, $refundRows);
+        }
+    }
+
+    public function test_concurrent_auto_promotion_vs_manual_approve_serializes_to_single_winner(): void
+    {
+        foreach (['ap1', 'ap2', 'ap3'] as $suffix) {
+            $context = $this->prepareContextOrSkip('auto_promote_vs_manual_approve', $suffix);
+            $results = $this->runWorkers($context);
+
+            $this->assertIndependentConnections($results);
+            $winner = WalletAutoApprovalConcurrencyMysqlAssertions::assertExactlyOneApprovalSuccess($results);
+            $this->assertSame('pending_execution', $winner['refund_status'] ?? null);
+            $this->assertSame('wallet', $winner['approved_method'] ?? null);
+
+            $pdo = $this->safePdo();
+            $refundId = (int) $context['refund_id'];
+            $orderId = (int) $context['order_id'];
+            WalletAutoApprovalConcurrencyMysqlAssertions::assertSingleApprovalWinner($pdo, $refundId, $orderId);
+
+            $autoAudit = (int) $pdo->query(
+                "select count(*) from audit_logs where event = 'refund.approved' and auditable_id = {$refundId} "
+                ."and JSON_UNQUOTE(JSON_EXTRACT(new_values, '$.approval_source')) = 'auto'",
+            )->fetchColumn();
+            $manualAudit = (int) $pdo->query(
+                "select count(*) from audit_logs where event = 'refund.approved' and auditable_id = {$refundId} "
+                ."and (JSON_EXTRACT(new_values, '$.approval_source') is null or JSON_UNQUOTE(JSON_EXTRACT(new_values, '$.approval_source')) != 'auto')",
+            )->fetchColumn();
+            $this->assertSame(1, $autoAudit + $manualAudit);
+            $this->assertTrue($autoAudit === 1 xor $manualAudit === 1, 'Exactly one auto or manual approval source expected.');
+        }
+    }
+
+    public function test_retry_manual_and_auto_promotion_after_approval_is_idempotent(): void
+    {
+        $context = $this->prepareContextOrSkip('auto_promote_vs_manual_approve', 'id1');
+        $results = $this->runWorkers($context);
+        WalletAutoApprovalConcurrencyMysqlAssertions::assertExactlyOneApprovalSuccess($results);
+
+        $retryApprove = $this->runSingleWorker($context, 'worker1', ['action' => 'approve']);
+        $this->assertFalse($retryApprove['ok'] ?? true);
+        $this->assertTrue($retryApprove['validation'] ?? false);
+
+        $retryAuto = $this->runSingleWorker($context, 'worker0', ['action' => 'auto_promote']);
+        $this->assertFalse($retryAuto['ok'] ?? true);
+        $this->assertTrue($retryAuto['validation'] ?? false);
+
+        $pdo = $this->safePdo();
+        WalletAutoApprovalConcurrencyMysqlAssertions::assertSingleApprovalWinner(
+            $pdo,
+            (int) $context['refund_id'],
+            (int) $context['order_id'],
+        );
     }
 
     public function test_concurrent_manual_approve_race_serializes_to_one_pending_execution(): void
@@ -267,6 +339,54 @@ class RefundWalletAutoApprovalMysqlConcurrencyTest extends TestCase
         }
 
         return $results;
+    }
+
+    /**
+     * @param  array<string, mixed>  $context
+     * @param  array<string, mixed>  $workerOverrides
+     * @return array<string, mixed>
+     */
+    private function runSingleWorker(array $context, string $workerLabel, array $workerOverrides): array
+    {
+        $dir = sys_get_temp_dir().'/wallet-auto-approval-single-'.bin2hex(random_bytes(6));
+        mkdir($dir, 0700);
+
+        $payloadPath = $dir.'/payload.json';
+        $readyPath = $dir.'/ready';
+        $goPath = $dir.'/go';
+        $resultPath = $dir.'/result.json';
+
+        $merged = array_merge($context, [$workerLabel => $workerOverrides, 'worker_label' => $workerLabel]);
+        file_put_contents($payloadPath, json_encode($merged, JSON_THROW_ON_ERROR));
+
+        $process = $this->process([
+            $this->phpBinary(),
+            '-n',
+            base_path('tests/Feature/Refunds/Support/mysql_wallet_auto_approval_worker.php'),
+            '--payload='.$payloadPath,
+            '--ready='.$readyPath,
+            '--go='.$goPath,
+            '--result='.$resultPath,
+        ], 120);
+        $process->start();
+
+        $deadline = microtime(true) + 60;
+        while (! is_file($readyPath)) {
+            if (microtime(true) > $deadline) {
+                $process->stop(0.2);
+                $this->fail('Single worker did not signal ready.');
+            }
+            usleep(2000);
+        }
+
+        file_put_contents($goPath, '1');
+        $process->wait();
+        $this->assertTrue($process->isSuccessful(), $process->getErrorOutput());
+
+        $decoded = json_decode((string) file_get_contents($resultPath), true);
+        $this->assertIsArray($decoded);
+
+        return $decoded;
     }
 
     /**
