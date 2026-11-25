@@ -119,5 +119,10 @@ return [
         'automation_failure_threshold' => max(1, (int) env('IRA_WATCHDOG_AUTOMATION_FAILURE_THRESHOLD', 3)),
         'interakt_failure_threshold' => max(1, (int) env('IRA_WATCHDOG_INTERAKT_FAILURE_THRESHOLD', 3)),
         'radiumbox_min_success_rate' => (float) env('IRA_WATCHDOG_RADIUMBOX_MIN_SUCCESS_RATE', 80),
+        'radiumbox_hygiene_enabled' => (bool) env('IRA_WATCHDOG_RADIUMBOX_HYGIENE_ENABLED', false),
+        'dead_letter_hygiene_enabled' => (bool) env('IRA_WATCHDOG_DEAD_LETTER_HYGIENE_ENABLED', false),
+        'bonvoice_hygiene_enabled' => (bool) env('IRA_WATCHDOG_BONVOICE_HYGIENE_ENABLED', false),
+        'actionable_hours' => max(1, (int) env('IRA_WATCHDOG_ACTIONABLE_HOURS', 48)),
+        'stale_days' => max(1, (int) env('IRA_WATCHDOG_STALE_DAYS', 30)),
     ],
 ];
