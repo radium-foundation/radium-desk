@@ -912,18 +912,21 @@ class CashfreeWebhookProcessorService
 
     private function markProcessed(CashfreeWebhookLog $webhookLog, Incident $incident): CashfreeWebhookLog
     {
-        $webhookLog->update([
-            'incident_id' => $incident->id,
-            'processing_status' => self::STATUS_PROCESSED,
-            'processing_error' => null,
-            'processed_at' => now(),
-        ]);
-
-        $this->stageTiming->completeStage('mark_processed', 'ok');
-
         return $this->stageTiming->measureStage(
-            'fresh_incident',
-            fn (): CashfreeWebhookLog => $webhookLog->fresh(['incident']),
+            'mark_processed',
+            function () use ($webhookLog, $incident): CashfreeWebhookLog {
+                $webhookLog->update([
+                    'incident_id' => $incident->id,
+                    'processing_status' => self::STATUS_PROCESSED,
+                    'processing_error' => null,
+                    'processed_at' => now(),
+                ]);
+
+                return $this->stageTiming->measureStage(
+                    'fresh_incident',
+                    fn (): CashfreeWebhookLog => $webhookLog->fresh(['incident']),
+                );
+            },
         );
     }
 }
