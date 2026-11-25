@@ -1,5 +1,16 @@
 # Changelog
 
+## 4.1.121 — 2026-11-25 — Cashfree webhook async outbox + redacted forensic logging (P-25-21 / PR #433)
+
+- **Cashfree webhooks (PR #433 / P-25-21):** Outbox aggregate drain on the Cashfree webhook path moves from synchronous `OutboxProcessorService::processAggregate()` to queued **`ProcessOutboxAggregateJob`** (`afterCommit()`, **`critical`** queue, uniqueness/backoff). Reduces Eloquent/LSAPI thread occupancy on payment ingestion under webhook load.
+- **Forensic logging:** **`CashfreeWebhookForensicLogger`** emits structured, allowlisted forensic fields only (no raw webhook body, full headers, signatures, tokens, or secrets in application logs).
+- **Preserved on webhook thread:** Synchronous **`OrderPaid` → `ConfirmRadiumBoxPaymentOnOrderPaid`** (RadiumBox HTTP confirm) unchanged.
+- **Migrations:** **`DEPLOY_RUN_MIGRATIONS=0`** — none applied on this deploy.
+- **Seeder:** **`DEPLOY_RUN_ROLE_PERMISSION_SEED=0`** — **`RolePermissionSeeder`** not run.
+- **Protected configuration:** Preserve **`REFUNDS_WALLET_AUTO_APPROVAL_ENABLED`**, **`WORKFORCE_LEAVE_AUTO_APPROVAL_ENABLED`**, **`AW_ORDER_DAILY_TELEGRAM_ENABLED`**, **`PRE_SHIPMENT_CANCELLATION_ENABLED`** as on production (all **true** at P-25-24 deploy authorization).
+- Rollback target: **v4.1.120** / `3da823d18`.
+- Application baseline **`3e4baff247b5d760d891cc41a0b1eb71a1cbae23`** (merge **#433**); release prep **P-25-24**.
+
 ## 4.1.119 — 2026-11-25 — Wallet refund auto-approval (dormant) + session lifecycle (P-25-06 / PR #429, PR #430)
 
 - **Wallet refund auto-approval (PR #429 / P-24-41):** Phase 1 evaluator and Desk-First integration ships **dormant** behind **`REFUNDS_WALLET_AUTO_APPROVAL_ENABLED`** (default **false**). **No** automatic approval execution, ledger credit, or financial operation in production without separate Owner authorization.
