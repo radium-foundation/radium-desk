@@ -28,6 +28,10 @@ final class CashfreeWebhookStageTiming
 
     private int $lastStageHr = 0;
 
+    private ?int $transactionPersistenceStartHr = null;
+
+    private ?int $transactionCommitStartHr = null;
+
     private int $persistRetryCount = 0;
 
     public function activate(): void
@@ -138,25 +142,38 @@ final class CashfreeWebhookStageTiming
             return;
         }
 
-        $this->lastStageHr = hrtime(true);
+        $this->transactionPersistenceStartHr = hrtime(true);
+        $this->transactionCommitStartHr = null;
     }
 
     public function markTransactionPersistenceComplete(string $outcome = 'ok'): void
     {
-        if (! $this->active) {
+        if (! $this->active || $this->transactionPersistenceStartHr === null) {
             return;
         }
 
-        $this->completeStage('transaction_persistence', $outcome);
+        $now = hrtime(true);
+        $durationMs = ($now - $this->transactionPersistenceStartHr) / 1e6;
+        $this->transactionPersistenceStartHr = null;
+        $this->lastStageHr = $now;
+        $this->emitStage('transaction_persistence', $outcome, $durationMs);
+
+        if ($outcome === 'ok') {
+            $this->transactionCommitStartHr = $now;
+        }
     }
 
     public function markTransactionCommitComplete(): void
     {
-        if (! $this->active) {
+        if (! $this->active || $this->transactionCommitStartHr === null) {
             return;
         }
 
-        $this->completeStage('transaction_commit', 'ok');
+        $now = hrtime(true);
+        $durationMs = ($now - $this->transactionCommitStartHr) / 1e6;
+        $this->transactionCommitStartHr = null;
+        $this->lastStageHr = $now;
+        $this->emitStage('transaction_commit', 'ok', $durationMs);
     }
 
     /**
