@@ -1409,4 +1409,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 
 | RadiumDesk-P-26-01 | 2026-11-26 | **P-26-01** Watchdog alert hygiene classifiers (flags default off) ChatGPT **P-26-01**; Cursor **`bd0ac5bd-88f0-48e0-aacd-66eca9be9aef`** | Worktree **`.worktrees/p26-01-watchdog-hygiene`** branch **`feature/p26-01-watchdog-alert-hygiene`** from **`origin/main`**. RadiumBox/DLQ/BonVoice classifiers; evening backlog metrics; read-only **`watchdog:alert-parity`**. Focused PHPUnit **44/44** watchdog bundle **PASS**; Pint **PASS**. **Draft PR** pending. **NO** merge/deploy/flag enable/prod. **~23:53–00:12 IST**. |
 
+| RadiumDesk-P-26-03 | 2026-11-26 | **P-26-03** Remove dashboard horizontal Mission Control tab row | **LOW.** Worktree **`.worktrees/p26-03-dashboard-tab-row`**; branch **`feature/p26-03-remove-dashboard-tab-row`** @ **`origin/main`** **`1a9c9facf`**. Drop `mission-control-workspace-nav` include from `/dashboard` only; KPI + service-case queue unchanged. **NO** merge/deploy/prod. Cursor agent session. |
+
 Do not renumber or overwrite earlier rows. Append only.
