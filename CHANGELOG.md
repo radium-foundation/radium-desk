@@ -1,5 +1,23 @@
 # Changelog
 
+## 4.1.125 — 2026-11-26 — Watchdog alert hygiene (default off) + dashboard tab removal (P-26-01 / P-26-03)
+
+- **Watchdog hygiene (PR #437):** RadiumBox sync, queue dead-letter, and BonVoice classifiers; evening backlog metrics; read-only `watchdog:alert-parity`. All three `IRA_WATCHDOG_*_HYGIENE_ENABLED` flags default false; no production enablement in this release.
+- **Dashboard (PR #438):** Remove horizontal Mission Control tab row on `/dashboard`; preserve KPI strip and service-case queue.
+- **Migrations:** `DEPLOY_RUN_MIGRATIONS=0`.
+- **Seeder:** `DEPLOY_RUN_ROLE_PERMISSION_SEED=0`.
+- **Protected configuration:** preserve the four production flags as on v4.1.124; hygiene flags remain false/absent.
+- Rollback target: v4.1.124 / `63165d5fb`.
+
+## 4.1.124 — 2026-11-25 — Cashfree transaction stage-timing anchor correction (P-25-46 / PR #436)
+
+- **Cashfree webhooks (PR #436 / P-25-46):** Correct **`CashfreeWebhookStageTiming`** transaction-stage anchors so **`transaction_persistence`** and **`transaction_commit`** measure independent intervals (persistence start before the DB closure; commit start immediately before **`DB::transaction()`**). Wrap **`markProcessed`** in stage measurement so **`mark_processed`** timing is recorded without reordering handler work. **Observability only** — **no** change to signature verification, idempotency, persistence semantics, **`OrderPaid`** dispatch, outbox behaviour, or payment outcomes.
+- **Migrations:** **`DEPLOY_RUN_MIGRATIONS=0`** — none applied on this deploy.
+- **Seeder:** **`DEPLOY_RUN_ROLE_PERMISSION_SEED=0`** — **`RolePermissionSeeder`** not run.
+- **Protected configuration:** Preserve **`REFUNDS_WALLET_AUTO_APPROVAL_ENABLED`**, **`WORKFORCE_LEAVE_AUTO_APPROVAL_ENABLED`**, **`AW_ORDER_DAILY_TELEGRAM_ENABLED`**, **`PRE_SHIPMENT_CANCELLATION_ENABLED`** as on production.
+- Rollback target: **v4.1.123** / `caabe8dd0`.
+- Application baseline **`fbab234655d9681e57465f45787f95e669e25102`** (merge **#436**); release prep **P-25-52**. Deployed **v4.1.123** changelog entry lives on tag **`v4.1.123`** / `caabe8dd0` (not on **`main`** lineage).
+
 ## 4.1.119 — 2026-11-25 — Wallet refund auto-approval (dormant) + session lifecycle (P-25-06 / PR #429, PR #430)
 
 - **Wallet refund auto-approval (PR #429 / P-24-41):** Phase 1 evaluator and Desk-First integration ships **dormant** behind **`REFUNDS_WALLET_AUTO_APPROVAL_ENABLED`** (default **false**). **No** automatic approval execution, ledger credit, or financial operation in production without separate Owner authorization.
