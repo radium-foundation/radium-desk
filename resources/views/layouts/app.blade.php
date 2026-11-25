@@ -36,7 +36,10 @@
         'unified-intake-primary' => config('unified_intake.primary') && request()->routeIs('dashboard'),
     ])
     @auth
-        @if(app(\App\Services\Operations\OperationsRoleService::class)->isTeamMember(auth()->user()))
+        data-session-lifecycle="true"
+        data-session-status-url="{{ route('session.status') }}"
+        @php($operationsRoleService = app(\App\Services\Operations\OperationsRoleService::class))
+        @if($operationsRoleService->isAttendanceTracked(auth()->user()))
             data-presence-heartbeat="true"
             data-presence-heartbeat-enabled="{{ config('presence.heartbeat_enabled') ? 'true' : 'false' }}"
             data-presence-heartbeat-url="{{ route('presence.heartbeat') }}"

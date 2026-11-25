@@ -33,6 +33,10 @@ const validationMessage = (data) => {
 
 const statusMessage = (status, data) => {
     switch (status) {
+        case 401:
+            return data?.message ?? 'Your session has ended. Please sign in again.';
+        case 419:
+            return data?.message ?? 'Your session has expired. Please refresh the page and try again.';
         case 403:
             return data?.message ?? 'You do not have permission to perform this action.';
         case 404:

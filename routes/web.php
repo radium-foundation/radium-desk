@@ -123,6 +123,7 @@ use App\Http\Controllers\ServicePos\CounterController as ServicePosCounterContro
 use App\Http\Controllers\ServicePos\QuoteController as ServicePosQuoteController;
 use App\Http\Controllers\ServicePos\SaleController as ServicePosSaleController;
 use App\Http\Controllers\ServicePos\ServiceOrderController as ServicePosOrderController;
+use App\Http\Controllers\SessionStatusController;
 use App\Http\Controllers\SettingProductController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\SettingSourceController;
@@ -161,6 +162,10 @@ Route::middleware('signed')->group(function () {
     Route::get('support-appointments/{incident}/{appointment}/confirmation', [SupportAppointmentController::class, 'confirmation'])
         ->name('support-appointments.confirmation');
 });
+
+Route::get('/session/status', SessionStatusController::class)
+    ->middleware(['session.probe', 'active'])
+    ->name('session.status');
 
 Route::middleware(['auth', 'active'])->group(function () {
     Route::prefix('driver-management/radiumbox')

@@ -1,3 +1,4 @@
+import { handleHttpAuthStatus } from '../core/session-lifecycle';
 import { WorkspaceRequestError } from './error-handler';
 
 export const DEFAULT_WORKSPACE_TIMEOUT_MS = 30000;
@@ -21,12 +22,26 @@ export const workspaceFetch = async (url, options = {}) => {
     const timeoutId = setTimeout(() => controller.abort(), timeout);
 
     try {
-        return await fetch(url, {
+        const response = await fetch(url, {
             ...fetchOptions,
             headers: headers ?? workspaceFetchHeaders(),
             signal: controller.signal,
         });
+        const authResult = await handleHttpAuthStatus(response, { retryAfterCsrf: true });
+
+        if (authResult.action === 'redirect' || authResult.action === 'reload') {
+            throw new WorkspaceRequestError(
+                'session',
+                response.status,
+                'Your session has ended. Redirecting to login.',
+            );
+        }
+
+        return response;
     } catch (error) {
+        if (error instanceof WorkspaceRequestError) {
+            throw error;
+        }
         if (error?.name === 'AbortError') {
             throw new WorkspaceRequestError(
                 'timeout',

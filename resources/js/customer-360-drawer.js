@@ -6,8 +6,20 @@ import { initServiceCaseEmailWorkspace } from './service-case-email-workspace';
 import { initServiceCaseWhatsAppPanel } from './service-case-whatsapp-panel';
 import { initMoreMenu, closeMenu as closeMoreMenu, isMoreMenuOpen, openMoreMenuForHost } from './customer-360-more-menu';
 import { initConversationWorkspace } from './conversation-workspace';
+import { handleHttpAuthStatus } from './core/session-lifecycle';
 
 const SESSION_REASON = 'customer-360-drawer';
+
+const c360Fetch = async (url, options) => {
+    const response = await fetch(url, options);
+    const authResult = await handleHttpAuthStatus(response);
+
+    if (authResult.action === 'redirect' || authResult.action === 'reload') {
+        return null;
+    }
+
+    return response;
+};
 
 let customer360RefreshAbortController = null;
 
@@ -310,7 +322,7 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
         }
 
         try {
-            const response = await fetch(refreshUrl, {
+            const response = await c360Fetch(refreshUrl, {
                 headers: {
                     Accept: 'application/json',
                     'X-Requested-With': 'XMLHttpRequest',
@@ -322,7 +334,7 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
                 return;
             }
 
-            if (!response.ok) {
+            if (response === null || !response.ok) {
                 logCustomer360Failure(refreshUrl, response.status, 'device-refresh');
 
                 return;
@@ -380,7 +392,7 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
         }
 
         try {
-            const response = await fetch(`${refreshUrl}?offset=0`, {
+            const response = await c360Fetch(`${refreshUrl}?offset=0`, {
                 headers: {
                     Accept: 'application/json',
                     'X-Requested-With': 'XMLHttpRequest',
@@ -392,7 +404,7 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
                 return;
             }
 
-            if (!response.ok) {
+            if (response === null || !response.ok) {
                 logCustomer360Failure(refreshUrl, response.status, 'timeline-refresh');
 
                 return;
@@ -519,7 +531,7 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
 
         try {
-            await fetch(auditUrl, {
+            await c360Fetch(auditUrl, {
                 method: 'POST',
                 headers: {
                     Accept: 'application/json',
@@ -677,14 +689,14 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
                 : `${refreshUrl}?scope=workbench`;
 
             try {
-                const response = await fetch(scopedRefreshUrl, {
+                const response = await c360Fetch(scopedRefreshUrl, {
                     headers: {
                         Accept: 'application/json',
                         'X-Requested-With': 'XMLHttpRequest',
                     },
                 });
 
-                if (!response.ok) {
+                if (response === null || !response.ok) {
                     logCustomer360Failure(refreshUrl, response.status, 'workbench-refresh');
                     showWorkbenchError('Unable to refresh IRA AI suggestions. Please try again.');
                     showToast?.('IRA AI unavailable — unable to refresh suggestions');
@@ -752,7 +764,7 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
         const generation = contentGeneration;
 
         try {
-            const response = await fetch(loadUrl, {
+            const response = await c360Fetch(loadUrl, {
                 headers: {
                     Accept: 'application/json',
                     'X-Requested-With': 'XMLHttpRequest',
@@ -764,7 +776,7 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
                 return;
             }
 
-            if (!response.ok) {
+            if (response === null || !response.ok) {
                 logCustomer360Failure(loadUrl, response.status, 'executive-summary-load');
                 placeholder.innerHTML = '<p class="text-muted small mb-0">Unable to load executive summary.</p>';
 
@@ -810,7 +822,7 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
         const generation = contentGeneration;
 
         try {
-            const response = await fetch(loadUrl, {
+            const response = await c360Fetch(loadUrl, {
                 headers: {
                     Accept: 'application/json',
                     'X-Requested-With': 'XMLHttpRequest',
@@ -822,7 +834,7 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
                 return;
             }
 
-            if (!response.ok) {
+            if (response === null || !response.ok) {
                 logCustomer360Failure(loadUrl, response.status, 'timeline-tab-load');
                 placeholder.innerHTML = '<p class="text-muted small mb-0">Unable to load timeline.</p>';
 
@@ -867,7 +879,7 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
         const generation = contentGeneration;
 
         try {
-            const response = await fetch(loadUrl, {
+            const response = await c360Fetch(loadUrl, {
                 headers: {
                     Accept: 'application/json',
                     'X-Requested-With': 'XMLHttpRequest',
@@ -879,7 +891,7 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
                 return;
             }
 
-            if (!response.ok) {
+            if (response === null || !response.ok) {
                 logCustomer360Failure(loadUrl, response.status, 'ai-tab-load');
                 placeholder.innerHTML = '<p class="text-muted small mb-0">Unable to load IRA AI.</p>';
 
@@ -935,7 +947,7 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
             const params = new URLSearchParams(new FormData(form));
 
             try {
-                const response = await fetch(`${action}?${params.toString()}`, {
+                const response = await c360Fetch(`${action}?${params.toString()}`, {
                     headers: {
                         Accept: 'application/json',
                         'X-Requested-With': 'XMLHttpRequest',
@@ -943,7 +955,7 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
                     signal: subFetchController?.signal,
                 });
 
-                if (!response.ok) {
+                if (response === null || !response.ok) {
                     showWalletError();
 
                     return;
@@ -980,7 +992,7 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
                 params.set('cursor', cursor);
 
                 try {
-                    const response = await fetch(`${loadUrl}?${params.toString()}`, {
+                    const response = await c360Fetch(`${loadUrl}?${params.toString()}`, {
                         headers: {
                             Accept: 'application/json',
                             'X-Requested-With': 'XMLHttpRequest',
@@ -988,7 +1000,7 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
                         signal: subFetchController?.signal,
                     });
 
-                    if (!response.ok) {
+                    if (response === null || !response.ok) {
                         showWalletError();
 
                         return;
@@ -1047,7 +1059,7 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
         const generation = contentGeneration;
 
         try {
-            const response = await fetch(loadUrl, {
+            const response = await c360Fetch(loadUrl, {
                 headers: {
                     Accept: 'application/json',
                     'X-Requested-With': 'XMLHttpRequest',
@@ -1059,7 +1071,7 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
                 return;
             }
 
-            if (!response.ok) {
+            if (response === null || !response.ok) {
                 logCustomer360Failure(loadUrl, response.status, 'wallet-tab-load');
                 placeholder.innerHTML = '<p class="text-muted small mb-0">Unable to load wallet ledger.</p>';
 
@@ -1290,7 +1302,7 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
             const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
 
             try {
-                const response = await fetch(translateUrl, {
+                const response = await c360Fetch(translateUrl, {
                     method: 'POST',
                     headers: {
                         Accept: 'application/json',
@@ -1301,7 +1313,7 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
                     body: JSON.stringify(englishPayload),
                 });
 
-                if (!response.ok) {
+                if (response === null || !response.ok) {
                     showToast?.('Unable to load Hindi translation. Please try again.');
 
                     return;
@@ -1335,7 +1347,7 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
                 button.classList.add('is-syncing');
 
                 try {
-                    const response = await fetch(syncUrl, {
+                    const response = await c360Fetch(syncUrl, {
                         method: 'POST',
                         headers: {
                             Accept: 'application/json',
@@ -1413,7 +1425,7 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
                 }
 
                 try {
-                    const response = await fetch(form.action, {
+                    const response = await c360Fetch(form.action, {
                         method: 'POST',
                         headers: {
                             Accept: 'application/json',
@@ -1484,7 +1496,7 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
                 button.disabled = true;
 
                 try {
-                    const response = await fetch(revokeUrl, {
+                    const response = await c360Fetch(revokeUrl, {
                         method: 'POST',
                         headers: {
                             Accept: 'application/json',
@@ -1535,7 +1547,7 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
                 button.disabled = true;
 
                 try {
-                    const response = await fetch(shareUrl, {
+                    const response = await c360Fetch(shareUrl, {
                         method: 'POST',
                         headers: {
                             Accept: 'application/json',
@@ -1676,7 +1688,7 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
         });
 
         try {
-            const response = await fetch(url, {
+            const response = await c360Fetch(url, {
                 method: 'GET',
                 headers: {
                     Accept: 'text/html',
@@ -1685,8 +1697,8 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
                 signal: fetchController.signal,
             });
 
-            if (!response.ok) {
-                logCustomer360Failure(url, response.status, 'initial-load');
+            if (response === null || !response.ok) {
+                logCustomer360Failure(url, response?.status ?? null, 'initial-load');
                 setError('Unable to load customer details. Please try again.');
 
                 return;
@@ -1724,7 +1736,7 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
         const previousHtml = contentHost.innerHTML;
 
         try {
-            const response = await fetch(url, {
+            const response = await c360Fetch(url, {
                 method: 'GET',
                 headers: {
                     Accept: 'text/html',
@@ -1733,8 +1745,8 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
                 signal: fetchController.signal,
             });
 
-            if (!response.ok) {
-                logCustomer360Failure(url, response.status, 'drawer-refresh');
+            if (response === null || !response.ok) {
+                logCustomer360Failure(url, response?.status ?? null, 'drawer-refresh');
                 showToast?.('Unable to refresh customer details. Please try again.');
 
                 return;

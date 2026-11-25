@@ -1,3 +1,4 @@
+import { handleHttpAuthStatus } from './core/session-lifecycle';
 import { csrfToken } from './workspace/http';
 import { logRefreshLifecycle } from './dashboard-refresh-lifecycle';
 
@@ -61,9 +62,9 @@ export const initPresenceHeartbeat = () => {
                 body: JSON.stringify({ source: 'heartbeat' }),
             });
 
-            if (response.status === 401) {
-                window.location.assign('/login');
+            const authResult = await handleHttpAuthStatus(response);
 
+            if (authResult.action === 'redirect' || authResult.action === 'reload') {
                 return;
             }
 

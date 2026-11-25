@@ -15,6 +15,7 @@ import {
     isLegacyOneClickEligible,
     openLegacySearchConfirmModal,
 } from './intake-search-flow';
+import { handleHttpAuthStatus } from './core/session-lifecycle';
 import { renderIntakeOrderHistory } from './intake-order-history';
 const SEARCH_ICON_HTML = '<i class="bi bi-search"></i>';
 const SEARCH_LOADING_HTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
@@ -414,6 +415,12 @@ export const initUniversalSearch = ({
             },
         );
 
+        const rowsAuth = await handleHttpAuthStatus(rowsResponse);
+
+        if (rowsAuth.action === 'redirect' || rowsAuth.action === 'reload') {
+            return false;
+        }
+
         if (!rowsResponse.ok) {
             showSearchFailure(card, SEARCH_ROWS_ERROR);
 
@@ -512,6 +519,12 @@ export const initUniversalSearch = ({
             });
 
             if (requestId !== searchRequestId) {
+                return;
+            }
+
+            const searchAuth = await handleHttpAuthStatus(response);
+
+            if (searchAuth.action === 'redirect' || searchAuth.action === 'reload') {
                 return;
             }
 

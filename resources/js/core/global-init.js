@@ -4,6 +4,7 @@ import { initIncomingCallCardHost } from '../incoming-call-card';
 import { initKeyboardShortcuts } from '../keyboard';
 import { initLiveNotifications } from '../live-notifications';
 import { initPresenceHeartbeat } from '../presence-heartbeat';
+import { initSessionLifecycle } from './session-lifecycle';
 import { getDashboardConfig } from '../dashboard-config';
 import { initBatchTransactionForm } from '../dashboard-batch-transaction';
 import { createServiceCaseRowReplacer } from '../service-case-row';
@@ -133,7 +134,12 @@ export const initGlobalShell = () => {
         isWorkspaceSubmitBusy: () => workspaceApiRef?.isBusy?.('submit') ?? false,
         openDashboardQuickFilter: () => keyboardShortcutHooks.openDashboardQuickFilter(),
     });
-    initPresenceHeartbeat();
+    initSessionLifecycle();
+
+    if (document.body?.dataset?.presenceHeartbeat === 'true') {
+        initPresenceHeartbeat();
+    }
+
     initIncomingCallCardHost();
     void import('../todo-modal').then(({ initTodoModal }) => {
         initTodoModal();

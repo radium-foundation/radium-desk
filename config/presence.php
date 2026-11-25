@@ -4,6 +4,16 @@ return [
 
     'active_threshold_minutes' => (int) env('PRESENCE_ACTIVE_THRESHOLD_MINUTES', 5),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Deprecated: idle threshold (unused)
+    |--------------------------------------------------------------------------
+    |
+    | Presence status uses active_threshold_minutes and away_timeout_minutes only.
+    | This key is retained for backward compatibility with older .env files; it
+    | is not read by application code.
+    |
+    */
     'idle_threshold_minutes' => (int) env('PRESENCE_IDLE_THRESHOLD_MINUTES', 15),
 
     'away_timeout_minutes' => (int) env('PRESENCE_AWAY_TIMEOUT_MINUTES', 15),

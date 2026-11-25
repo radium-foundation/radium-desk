@@ -44,8 +44,12 @@ export const intakeCreateValidationMessage = (
 export const intakeCreateHttpErrorMessage = (response) => {
     const status = response?.status ?? 0;
 
-    if (status === 419 || status === 401 || status === 403) {
+    if (status === 419 || status === 401) {
         return INTAKE_CREATE_SESSION_ERROR;
+    }
+
+    if (status === 403) {
+        return data?.message ?? 'You do not have permission to perform this action.';
     }
 
     return INTAKE_CREATE_GENERIC_ERROR;
@@ -56,8 +60,12 @@ export const intakeCreateNetworkErrorMessage = () => INTAKE_CREATE_NETWORK_ERROR
 export const resolveIntakeCreateErrorMessage = (response, data) => {
     const status = response?.status ?? 0;
 
-    if (status === 419 || status === 401 || status === 403) {
+    if (status === 419 || status === 401) {
         return INTAKE_CREATE_SESSION_ERROR;
+    }
+
+    if (status === 403) {
+        return data?.message ?? 'You do not have permission to perform this action.';
     }
 
     if (status >= 500) {
