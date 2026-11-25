@@ -3,6 +3,8 @@
 namespace Tests\Feature;
 
 use App\Enums\OutboxEventStatus;
+use App\Infrastructure\Queue\QueueRouting;
+use App\Jobs\Outbox\ProcessOutboxAggregateJob;
 use App\Jobs\RadiumBoxOrderEnrichmentJob;
 use App\Models\CashfreeWebhookLog;
 use App\Models\Incident;
@@ -174,8 +176,30 @@ class CashfreeScopedOutboxDrainTest extends TestCase
             $cashfreeDeferred->pluck('payload.operation')->all(),
         );
         $this->assertTrue(
+            $cashfreeDeferred->every(fn (OutboxEvent $event): bool => $event->status === OutboxEventStatus::Pending),
+            'Cashfree deferred rows must remain Pending until the async aggregate job drains them',
+        );
+
+        Queue::assertPushed(ProcessOutboxAggregateJob::class, function (ProcessOutboxAggregateJob $job) use ($incident): bool {
+            $this->assertSame(QueueRouting::critical(), $job->queue);
+            $this->assertSame(CashfreeWebhookOutboxWriter::AGGREGATE_TYPE, $job->aggregateType);
+            $this->assertSame($incident->id, $job->aggregateId);
+
+            app()->call([$job, 'handle']);
+
+            return true;
+        });
+
+        $cashfreeDeferred = OutboxEvent::query()
+            ->where('event_type', CashfreeWebhookOutboxWriter::EVENT_TYPE)
+            ->where('aggregate_type', CashfreeWebhookOutboxWriter::AGGREGATE_TYPE)
+            ->where('aggregate_id', $incident->id)
+            ->orderBy('id')
+            ->get();
+
+        $this->assertTrue(
             $cashfreeDeferred->every(fn (OutboxEvent $event): bool => $event->status === OutboxEventStatus::Completed),
-            'Expected all three Cashfree deferred rows to be Completed',
+            'Expected all three Cashfree deferred rows to be Completed after async drain',
         );
 
         foreach ($unrelatedIds as $id) {
@@ -222,15 +246,17 @@ class CashfreeScopedOutboxDrainTest extends TestCase
             ->assertOk();
         $backlogMs = (hrtime(true) - $backlogStarted) / 1e6;
 
-        $completedForPayment = OutboxEvent::query()
+        $pendingCashfreeDeferred = OutboxEvent::query()
             ->where('event_type', CashfreeWebhookOutboxWriter::EVENT_TYPE)
-            ->where('status', OutboxEventStatus::Completed)
+            ->where('status', OutboxEventStatus::Pending)
+            ->where('aggregate_id', '<', 900000)
             ->count();
 
-        // Two payments × 3 deferred ops = 6 completed Cashfree rows; unrelated stay Pending.
-        $this->assertSame(6, $completedForPayment);
+        // Webhook must enqueue scoped drain only; unrelated backlog stays Pending.
+        $this->assertSame(6, $pendingCashfreeDeferred);
+        Queue::assertPushed(ProcessOutboxAggregateJob::class, 2);
         $this->assertSame(
-            51,
+            57,
             OutboxEvent::query()->where('status', OutboxEventStatus::Pending)->count(),
         );
 
@@ -252,13 +278,7 @@ class CashfreeScopedOutboxDrainTest extends TestCase
 
         $this->partialMock(OutboxProcessorService::class, function ($mock): void {
             $mock->shouldReceive('process')->never();
-            $mock->shouldReceive('processAggregate')
-                ->once()
-                ->with(
-                    CashfreeWebhookOutboxWriter::AGGREGATE_TYPE,
-                    Mockery::type('int'),
-                )
-                ->andReturnNull();
+            $mock->shouldReceive('processAggregate')->never();
         });
 
         $this->postJson('/api/webhooks/cashfree', $this->successfulPayload('1453002904', 'order-no-global'))
@@ -269,5 +289,6 @@ class CashfreeScopedOutboxDrainTest extends TestCase
             CashfreeWebhookLog::query()->latest('id')->value('processing_status'),
         );
         $this->assertSame(3, OutboxEvent::query()->where('status', OutboxEventStatus::Pending)->count());
+        Queue::assertPushed(ProcessOutboxAggregateJob::class, 1);
     }
 }
