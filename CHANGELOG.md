@@ -1,5 +1,15 @@
 # Changelog
 
+## 4.1.120 — 2026-11-25 — Queued Ably realtime broadcasting hotfix (P-25-15 / PR #432)
+
+- **Realtime broadcasting (PR #432 / P-25-15):** Dashboard and critical operator realtime events move from synchronous **`ShouldBroadcastNow`** to queued **`ShouldBroadcast`** on Redis queues **`notifications`** and **`critical`** via **`ResilientRealtimeBroadcaster`** (fail-open enqueue). Reduces Ably REST/Curl 30s fatals blocking LSAPI request threads under webhook/realtime load.
+- **Migrations:** **`DEPLOY_RUN_MIGRATIONS=0`** — none applied on this deploy.
+- **Seeder:** **`DEPLOY_RUN_ROLE_PERMISSION_SEED=0`** — **`RolePermissionSeeder`** not run.
+- **Protected configuration:** Preserve **`REFUNDS_WALLET_AUTO_APPROVAL_ENABLED`**, **`WORKFORCE_LEAVE_AUTO_APPROVAL_ENABLED`**, **`AW_ORDER_DAILY_TELEGRAM_ENABLED`**, **`PRE_SHIPMENT_CANCELLATION_ENABLED`** as on production (all **true** at P-25-18 deploy authorization).
+- **Operational note:** **`radium-desk-queue-worker`** restart authorized post-deploy so workers load new broadcast job code; **no** OpenLiteSpeed/MariaDB/Redis restart.
+- Rollback target: **v4.1.119** / `316803c2f`.
+- Application baseline **`40556c884`** (merge **#432**); release prep **P-25-18**.
+
 ## 4.1.119 — 2026-11-25 — Wallet refund auto-approval (dormant) + session lifecycle (P-25-06 / PR #429, PR #430)
 
 - **Wallet refund auto-approval (PR #429 / P-24-41):** Phase 1 evaluator and Desk-First integration ships **dormant** behind **`REFUNDS_WALLET_AUTO_APPROVAL_ENABLED`** (default **false**). **No** automatic approval execution, ledger credit, or financial operation in production without separate Owner authorization.
