@@ -8,6 +8,7 @@ use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
 use App\Enums\OrderStatus;
 use App\Events\Finance\OrderPaid;
+use App\Jobs\Outbox\ProcessOutboxAggregateJob;
 use App\Models\CashfreeWebhookLog;
 use App\Models\Incident;
 use App\Models\Order;
@@ -17,7 +18,6 @@ use App\Services\AuditLogService;
 use App\Services\IncidentReferenceService;
 use App\Services\Inquiry\InquiryOrderLinkService;
 use App\Services\OrderIdentityLifecycleService;
-use App\Services\Outbox\OutboxProcessorService;
 use App\Services\RadiumBox\RadiumBoxOrderSearchResponseMapper;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Carbon;
@@ -52,7 +52,6 @@ class CashfreeWebhookProcessorService
         private readonly IncidentReferenceService $incidentReferenceService,
         private readonly UniversalAssignmentEngine $assignmentEngine,
         private readonly CashfreeWebhookOutboxWriter $outboxWriter,
-        private readonly OutboxProcessorService $outboxProcessorService,
         private readonly CashfreeWebhookReliabilityMetrics $reliabilityMetrics,
         private readonly InquiryOrderLinkService $inquiryOrderLinkService,
         private readonly CashfreeHealthService $cashfreeHealthService,
@@ -451,15 +450,14 @@ class CashfreeWebhookProcessorService
     ): void {
         try {
             // Cashfree writes exactly three deferred rows for this incident aggregate.
-            // One processAggregate() claim-all drains only that aggregate — never global
-            // FIFO (Interakt / BonVoice / email / WhatsApp / unrelated Cashfree rows)
-            // and prevents cron outbox:process from stealing siblings mid-drain.
-            $this->outboxProcessorService->processAggregate(
+            // Scoped drain runs on the critical queue after commit — never global FIFO
+            // (Interakt / BonVoice / email / WhatsApp / unrelated Cashfree rows).
+            ProcessOutboxAggregateJob::dispatch(
                 CashfreeWebhookOutboxWriter::AGGREGATE_TYPE,
                 $deferredContext->incidentId,
-            );
+            )->afterCommit();
         } catch (Throwable $exception) {
-            Log::error('[Cashfree Webhook] Deferred operation dispatch failed after payment commit.', [
+            Log::error('[Cashfree Webhook] Deferred operation queue dispatch failed after payment commit.', [
                 'webhook_log_id' => $webhookLog->id,
                 'cf_payment_id' => $webhookLog->cf_payment_id,
                 'order_id' => $deferredContext->orderId,

@@ -3,13 +3,13 @@
 namespace Tests\Feature;
 
 use App\Enums\OutboxEventStatus;
+use App\Jobs\Outbox\ProcessOutboxAggregateJob;
 use App\Jobs\RadiumBoxOrderEnrichmentJob;
 use App\Models\AuditLog;
 use App\Models\CashfreeWebhookLog;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\OutboxEvent;
-use App\Models\User;
 use App\Services\AuditLogService;
 use App\Services\Cashfree\CashfreeWebhookDeferredOperationsService;
 use App\Services\Cashfree\CashfreeWebhookOutboxWriter;
@@ -25,12 +25,14 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Queue;
 use RuntimeException;
 use Tests\Concerns\EnsuresCashfreeSystemUser;
+use Tests\Concerns\RunsPushedOutboxAggregateJobs;
 use Tests\TestCase;
 
 class CashfreeWebhookReliabilityTest extends TestCase
 {
     use EnsuresCashfreeSystemUser;
     use RefreshDatabase;
+    use RunsPushedOutboxAggregateJobs;
 
     protected function setUp(): void
     {
@@ -112,6 +114,9 @@ class CashfreeWebhookReliabilityTest extends TestCase
         $this->assertNotNull($log);
         $this->assertSame(CashfreeWebhookProcessorService::STATUS_PROCESSED, $log->processing_status);
 
+        Queue::assertPushed(ProcessOutboxAggregateJob::class, 1);
+        $this->runPushedOutboxAggregateJobs();
+
         $this->assertDatabaseHas('outbox_events', [
             'event_type' => CashfreeWebhookOutboxWriter::EVENT_TYPE,
             'status' => OutboxEventStatus::Pending->value,
@@ -133,6 +138,9 @@ class CashfreeWebhookReliabilityTest extends TestCase
 
         $this->assertSame(1, Order::query()->where('cashfree_payment_id', '1453002796')->count());
         $this->assertSame(1, Incident::query()->count());
+
+        Queue::assertPushed(ProcessOutboxAggregateJob::class, 1);
+        $this->runPushedOutboxAggregateJobs();
 
         $this->assertDatabaseHas('outbox_events', [
             'payload->operation' => CashfreeWebhookDeferredOperationsService::OPERATION_DASHBOARD_BROADCAST,
@@ -172,6 +180,9 @@ class CashfreeWebhookReliabilityTest extends TestCase
         });
 
         $this->postSuccessfulWebhook('1453002797', 'order-audit-fail');
+
+        Queue::assertPushed(ProcessOutboxAggregateJob::class, 1);
+        $this->runPushedOutboxAggregateJobs();
 
         $this->assertSame(1, Order::query()->where('cashfree_payment_id', '1453002797')->count());
         $this->assertSame(1, Incident::query()->count());
@@ -217,6 +228,9 @@ class CashfreeWebhookReliabilityTest extends TestCase
         $order = Order::query()->where('cashfree_payment_id', '1453002795')->first();
         $this->assertNotNull($order);
 
+        Queue::assertPushed(ProcessOutboxAggregateJob::class, 1);
+        $this->runPushedOutboxAggregateJobs();
+
         $this->assertSame(1, AuditLog::query()
             ->where('event', ServiceCaseAutomationMonitorService::EVENT_PAYMENT_RECEIVED)
             ->count());
@@ -260,6 +274,9 @@ class CashfreeWebhookReliabilityTest extends TestCase
         Queue::fake();
 
         $this->postSuccessfulWebhook('1453002799', 'order-retry-success');
+
+        Queue::assertPushed(ProcessOutboxAggregateJob::class, 1);
+        $this->runPushedOutboxAggregateJobs();
 
         $metrics = app(CashfreeWebhookReliabilityMetrics::class)->snapshot();
         $this->assertSame(1, $metrics->ordersCreated);
@@ -307,12 +324,14 @@ class CashfreeWebhookReliabilityTest extends TestCase
 
         $this->postSuccessfulWebhook('1453002800', 'order-metrics');
 
+        Cache::forget(CashfreeWebhookReliabilityMetrics::SNAPSHOT_CACHE_KEY);
+
         $counts = app(CashfreeWebhookReliabilityMetrics::class)->dashboardCounts();
 
         $this->assertSame(1, $counts['cashfree_orders_created']);
-        $this->assertSame(0, $counts['cashfree_outbox_pending']);
+        $this->assertSame(3, $counts['cashfree_outbox_pending']);
         $this->assertSame(0, $counts['cashfree_outbox_failed']);
-        $this->assertSame(3, $counts['cashfree_outbox_completed_today']);
+        $this->assertSame(0, $counts['cashfree_outbox_completed_today']);
         $this->assertSame(0, $counts['cashfree_paid_without_desk_order']);
     }
 }

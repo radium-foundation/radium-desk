@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
+use App\Jobs\Outbox\ProcessOutboxAggregateJob;
 use App\Jobs\RadiumBoxOrderEnrichmentJob;
 use App\Models\CashfreeWebhookLog;
 use App\Models\Incident;
@@ -13,11 +14,13 @@ use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\SettingsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
+use Tests\Concerns\RunsPushedOutboxAggregateJobs;
 use Tests\TestCase;
 
 class CashfreeWebhookProcessorTest extends TestCase
 {
     use RefreshDatabase;
+    use RunsPushedOutboxAggregateJobs;
 
     protected function setUp(): void
     {
@@ -187,6 +190,9 @@ class CashfreeWebhookProcessorTest extends TestCase
         $order = Order::query()->where('cashfree_payment_id', '1453002795')->first();
         $this->assertNotNull($order);
 
+        Queue::assertPushed(ProcessOutboxAggregateJob::class, 1);
+        $this->runPushedOutboxAggregateJobs();
+
         Queue::assertPushed(RadiumBoxOrderEnrichmentJob::class, function (RadiumBoxOrderEnrichmentJob $job) use ($order): bool {
             return $job->orderId === $order->id;
         });
@@ -199,6 +205,7 @@ class CashfreeWebhookProcessorTest extends TestCase
         $payload = $this->successfulPayload();
 
         $this->postJson('/api/webhooks/cashfree', $payload)->assertOk();
+        $this->runPushedOutboxAggregateJobs();
         $this->postJson('/api/webhooks/cashfree', $payload)->assertOk();
 
         Queue::assertPushed(RadiumBoxOrderEnrichmentJob::class, 1);

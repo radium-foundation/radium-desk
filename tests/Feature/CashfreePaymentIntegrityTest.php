@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Enums\CashfreeHistoricalRecoveryDisposition;
 use App\Enums\CashfreeWebhookFailureCategory;
 use App\Enums\OutboxEventStatus;
+use App\Jobs\Outbox\ProcessOutboxAggregateJob;
 use App\Jobs\RadiumBoxOrderEnrichmentJob;
 use App\Models\CashfreeWebhookLog;
 use App\Models\Incident;
@@ -13,14 +14,13 @@ use App\Models\OutboxEvent;
 use App\Models\User;
 use App\Services\Cashfree\CashfreePaymentIntegrityService;
 use App\Services\Cashfree\CashfreeWebhookDeferredOperationsService;
-use App\Services\Cashfree\CashfreeWebhookOutboxWriter;
 use App\Services\Cashfree\CashfreeWebhookProcessorService;
 use App\Services\Cashfree\CashfreeWebhookReliabilityMetrics;
 use App\Services\DashboardBroadcastService;
-use App\Services\Outbox\OutboxProcessorService;
-use App\Services\RadiumBox\RadiumBoxOrderEnrichmentService;
 use App\Services\Operations\OperationsCashfreeHealthService;
 use App\Services\Operations\OperationsIntegrationHealthService;
+use App\Services\Outbox\OutboxProcessorService;
+use App\Services\RadiumBox\RadiumBoxOrderEnrichmentService;
 use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\SettingsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -29,12 +29,14 @@ use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Queue;
 use RuntimeException;
 use Tests\Concerns\EnsuresCashfreeSystemUser;
+use Tests\Concerns\RunsPushedOutboxAggregateJobs;
 use Tests\TestCase;
 
 class CashfreePaymentIntegrityTest extends TestCase
 {
     use EnsuresCashfreeSystemUser;
     use RefreshDatabase;
+    use RunsPushedOutboxAggregateJobs;
 
     protected function setUp(): void
     {
@@ -129,6 +131,17 @@ class CashfreePaymentIntegrityTest extends TestCase
 
         $this->assertSame(1, Order::query()->where('cashfree_payment_id', '1453002796')->count());
         $this->assertSame(CashfreeWebhookProcessorService::STATUS_PROCESSED, $log->fresh()->processing_status);
+
+        Queue::assertPushed(ProcessOutboxAggregateJob::class, function (ProcessOutboxAggregateJob $job): bool {
+            try {
+                app()->call([$job, 'handle']);
+            } catch (RuntimeException) {
+                // deferred op failure is contained to outbox processing
+            }
+
+            return true;
+        });
+
         $this->assertDatabaseHas('outbox_events', [
             'payload->operation' => CashfreeWebhookDeferredOperationsService::OPERATION_DASHBOARD_BROADCAST,
             'status' => OutboxEventStatus::Pending->value,
@@ -149,6 +162,17 @@ class CashfreePaymentIntegrityTest extends TestCase
 
         $this->assertSame(1, Order::query()->where('cashfree_payment_id', '1453002797')->count());
         $this->assertSame(CashfreeWebhookProcessorService::STATUS_PROCESSED, $log->fresh()->processing_status);
+
+        Queue::assertPushed(ProcessOutboxAggregateJob::class, function (ProcessOutboxAggregateJob $job): bool {
+            try {
+                app()->call([$job, 'handle']);
+            } catch (RuntimeException) {
+                // deferred op failure is contained to outbox processing
+            }
+
+            return true;
+        });
+
         $this->assertDatabaseHas('outbox_events', [
             'payload->operation' => CashfreeWebhookDeferredOperationsService::OPERATION_RADIUMBOX_ENRICHMENT,
             'status' => OutboxEventStatus::Pending->value,
@@ -175,7 +199,7 @@ class CashfreePaymentIntegrityTest extends TestCase
         Queue::fake();
 
         $this->partialMock(OutboxProcessorService::class, function ($mock): void {
-            $mock->shouldReceive('process')->never();
+            $mock->shouldReceive('process')->byDefault()->passthru();
             $mock->shouldReceive('processAggregate')
                 ->once()
                 ->andThrow(new RuntimeException('outbox processor unavailable'));
@@ -186,6 +210,17 @@ class CashfreePaymentIntegrityTest extends TestCase
         $this->assertSame(1, Order::query()->where('cashfree_payment_id', '1453002799')->count());
         $this->assertSame(CashfreeWebhookProcessorService::STATUS_PROCESSED, $log->fresh()->processing_status);
         $this->assertSame(3, OutboxEvent::query()->where('status', OutboxEventStatus::Pending)->count());
+
+        try {
+            Queue::assertPushed(ProcessOutboxAggregateJob::class, function (ProcessOutboxAggregateJob $job): bool {
+                app()->call([$job, 'handle']);
+
+                return true;
+            });
+            $this->fail('Expected outbox aggregate job handle to throw');
+        } catch (RuntimeException $exception) {
+            $this->assertStringContainsString('outbox processor unavailable', $exception->getMessage());
+        }
     }
 
     public function test_duplicate_webhook_does_not_create_duplicate_order(): void
@@ -195,6 +230,7 @@ class CashfreePaymentIntegrityTest extends TestCase
         $payload = $this->successfulPayload('1453002800', 'order-dup');
 
         $this->postJson('/api/webhooks/cashfree', $payload)->assertOk();
+        $this->runPushedOutboxAggregateJobs();
         $this->postJson('/api/webhooks/cashfree', $payload)->assertOk();
 
         $this->assertSame(1, Order::query()->count());
@@ -212,7 +248,7 @@ class CashfreePaymentIntegrityTest extends TestCase
 
         $this->postSuccessfulWebhook('1453002801', 'order-present');
 
-        $report = app(\App\Services\Cashfree\CashfreePaymentIntegrityService::class)->reconcile();
+        $report = app(CashfreePaymentIntegrityService::class)->reconcile();
 
         $this->assertSame(2, $report->successfulCashfreePayments);
         $this->assertSame(1, $report->deskOrders);
