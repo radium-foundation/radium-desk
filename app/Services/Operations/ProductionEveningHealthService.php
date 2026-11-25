@@ -59,6 +59,7 @@ class ProductionEveningHealthService
                 'pending_syncs' => (int) ($radiumBox['pending_syncs'] ?? 0),
                 'success_rate_24h' => (float) ($radiumBox['success_rate_24h'] ?? 0),
             ],
+            'watchdog_hygiene_backlog' => app(WatchdogHygieneMetricsService::class)->snapshot($at),
         ];
     }
 
