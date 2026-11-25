@@ -1,5 +1,14 @@
 # Changelog
 
+## 4.1.123 — 2026-11-25 — Cashfree webhook stage-timing instrumentation (P-25-37 / PR #435)
+
+- **Cashfree webhooks (PR #435 / P-25-37):** Per-request **`cashfree.webhook.stage_timing`** events via scoped **`CashfreeWebhookStageTiming`** — allowlisted, redacted stage **`duration_ms`** from **`request_entry`** through **`response_handoff`** (application total only; not OLS HTTP completion). **No** change to signature verification, persistence, **`OrderPaid`** dispatch modes, or payment behaviour.
+- **Migrations:** **`DEPLOY_RUN_MIGRATIONS=0`** — none applied on this deploy.
+- **Seeder:** **`DEPLOY_RUN_ROLE_PERMISSION_SEED=0`** — **`RolePermissionSeeder`** not run.
+- **Protected configuration:** Preserve **`REFUNDS_WALLET_AUTO_APPROVAL_ENABLED`**, **`WORKFORCE_LEAVE_AUTO_APPROVAL_ENABLED`**, **`AW_ORDER_DAILY_TELEGRAM_ENABLED`**, **`PRE_SHIPMENT_CANCELLATION_ENABLED`** as on production.
+- Rollback target: **v4.1.122** / `492077ed6`.
+- Application baseline **`34c0a5438437e96a98c4fbb98bb2e46c7a50ae82`** (merge **#435**); release prep **P-25-39**.
+
 ## 4.1.119 — 2026-11-25 — Wallet refund auto-approval (dormant) + session lifecycle (P-25-06 / PR #429, PR #430)
 
 - **Wallet refund auto-approval (PR #429 / P-24-41):** Phase 1 evaluator and Desk-First integration ships **dormant** behind **`REFUNDS_WALLET_AUTO_APPROVAL_ENABLED`** (default **false**). **No** automatic approval execution, ledger credit, or financial operation in production without separate Owner authorization.
