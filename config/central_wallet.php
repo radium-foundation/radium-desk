@@ -253,6 +253,19 @@ return [
         ),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | P-01-60 verified-email checkout spend (default OFF — safe rollback)
+    |--------------------------------------------------------------------------
+    */
+
+    'spend_authorization' => [
+        'p01_60_verified_email_spend_enabled' => filter_var(
+            env('CENTRAL_WALLET_P01_60_VERIFIED_EMAIL_SPEND_ENABLED', false),
+            FILTER_VALIDATE_BOOLEAN,
+        ),
+    ],
+
     'historical_identity_repair' => [
         /** UTC instant when v4.1.15 Cashfree binder went live on production (P-04-10-156). */
         'deploy_cutoff_utc' => env('CENTRAL_WALLET_HISTORICAL_IDENTITY_REPAIR_DEPLOY_CUTOFF_UTC', '2026-10-09 12:51:27'),

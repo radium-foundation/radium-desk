@@ -9,7 +9,6 @@ use App\CentralWallet\Infrastructure\Persistence\CentralCustomer;
 use App\CentralWallet\Infrastructure\Persistence\CentralCustomerIdentityCredential;
 use App\CentralWallet\Infrastructure\Persistence\CentralWallet;
 use App\CentralWallet\Infrastructure\Persistence\CentralWalletAccountLink;
-use App\CentralWallet\Support\TrustedVerificationMethod;
 use InvalidArgumentException;
 use Throwable;
 
@@ -24,6 +23,7 @@ final class WalletVisibilityService
         private readonly LedgerService $ledger,
         private readonly AuditEventRecorder $auditEvents,
         private readonly CentralWalletAccountLinkDeskCustomerResolver $linkDeskCustomerResolver,
+        private readonly WalletSpendEligibilityService $spendEligibility,
     ) {}
 
     /**
@@ -117,6 +117,7 @@ final class WalletVisibilityService
                     currency: $currency,
                     verificationMethod: $verificationMethod,
                     emailVerifiedBySpoke: $emailVerifiedBySpoke,
+                    matchBasis: $matchBasis,
                 ),
                 [
                     'central_wallet_id' => $cwid,
@@ -167,6 +168,26 @@ final class WalletVisibilityService
             config('central_wallet.historical_wallet_visibility.enabled', false),
             FILTER_VALIDATE_BOOLEAN,
         );
+    }
+
+    /**
+     * @return array{central_wallet_id: string, verification_method: ?string, match_basis: string}
+     *
+     * @throws InvalidArgumentException
+     */
+    public function resolveWalletIdentityOrFail(
+        string $siteCode,
+        string $localUserId,
+        string $email,
+        string $mobileDigits = '',
+    ): array {
+        $resolution = $this->resolveWalletIdentity($siteCode, $localUserId, $email, $mobileDigits);
+
+        if ($resolution === null) {
+            throw new InvalidArgumentException('identity_not_found');
+        }
+
+        return $resolution;
     }
 
     /**
@@ -364,47 +385,31 @@ final class WalletVisibilityService
         string $currency,
         ?string $verificationMethod,
         bool $emailVerifiedBySpoke,
+        string $matchBasis,
     ): array {
-        if (bccomp($availableBalance, '0', 2) <= 0) {
-            return [
-                'wallet_balance' => $availableBalance,
-                'available_balance' => $availableBalance,
-                'currency' => $currency,
-                'balance_status' => 'verification_required',
-                'balance_source' => 'central_wallet',
-                'spendable' => false,
-                'verification_required' => true,
-                'display_label' => 'Wallet',
-                'display_hint' => 'Connect and verify your account to view your wallet balance.',
-            ];
-        }
+        $decision = $this->spendEligibility->decide(
+            $availableBalance,
+            $verificationMethod,
+            $emailVerifiedBySpoke,
+            $matchBasis,
+        );
 
-        $trusted = TrustedVerificationMethod::isTrusted($verificationMethod) && $emailVerifiedBySpoke;
-
-        if ($trusted) {
-            return [
-                'wallet_balance' => $availableBalance,
-                'available_balance' => $availableBalance,
-                'currency' => $currency,
-                'balance_status' => 'verified',
-                'balance_source' => 'central_wallet',
-                'spendable' => true,
-                'verification_required' => false,
-                'display_label' => 'Wallet',
-                'display_hint' => 'Available balance',
-            ];
-        }
+        $displayHint = match (true) {
+            $decision['spendable'] => 'Available balance',
+            bccomp($availableBalance, '0', 2) <= 0 => 'Connect and verify your account to view your wallet balance.',
+            default => 'Verify your email or sign in with Google on RadiumBox to spend this balance.',
+        };
 
         return [
             'wallet_balance' => $availableBalance,
             'available_balance' => $availableBalance,
             'currency' => $currency,
-            'balance_status' => 'unverified',
-            'balance_source' => 'historical_wallet_refund',
-            'spendable' => false,
-            'verification_required' => true,
+            'balance_status' => $decision['balance_status'],
+            'balance_source' => $decision['balance_source'],
+            'spendable' => $decision['spendable'],
+            'verification_required' => $decision['verification_required'],
             'display_label' => 'Wallet',
-            'display_hint' => 'Verify your email or sign in with Google on RadiumBox to spend this balance.',
+            'display_hint' => $displayHint,
         ];
     }
 
