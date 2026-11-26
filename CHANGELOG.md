@@ -1,5 +1,16 @@
 # Changelog
 
+## 4.1.126 — 2026-11-26 — Zero-side-effect watchdog alert parity (P-26-10 / PR #440)
+
+- **Watchdog parity (PR #440 / P-26-10):** `ProductionWatchdogService::collectParityAlerts()` for the three hygiene streams only (`radiumbox:sync_failures`, `queue:dead_letter`, `bonvoice:webhook_failures`) without `recordUptimeProbe()`, alert-gate, or `OperationsRadiumBoxHealthService::widget()` cache writes. Legacy RadiumBox counts use `RadiumBoxWatchdogSyncFailureReadModel` (DB-only).
+- **`watchdog:alert-parity`:** Compares legacy vs hygiene `affectedCount` via `collectParityAlerts(false|true)` plus read-only `WatchdogHygieneMetricsService::snapshot()`. Scheduled `collectCriticalAlerts()` behavior is unchanged until deployed.
+- **Tests:** `WatchdogAlertParityImmutabilityTest` (cache/DB/queue/filesystem immutability under PHPUnit array cache — Redis driver not independently verified).
+- **Migrations:** `DEPLOY_RUN_MIGRATIONS=0`.
+- **Seeder:** `DEPLOY_RUN_ROLE_PERMISSION_SEED=0`.
+- **Hygiene flags:** `IRA_WATCHDOG_RADIUMBOX_HYGIENE_ENABLED`, `IRA_WATCHDOG_DEAD_LETTER_HYGIENE_ENABLED`, `IRA_WATCHDOG_BONVOICE_HYGIENE_ENABLED` remain false/absent; no production enablement in this release.
+- Rollback target: v4.1.125 / `bf1b84ce29b0a9cb80d7baaf03a1320b98552119`.
+- **Note:** Production continues to run v4.1.125 until a separately authorized deployment; post-deploy production `watchdog:alert-parity` remains separately authorized.
+
 ## 4.1.125 — 2026-11-26 — Watchdog alert hygiene (default off) + dashboard tab removal (P-26-01 / P-26-03)
 
 - **Watchdog hygiene (PR #437):** RadiumBox sync, queue dead-letter, and BonVoice classifiers; evening backlog metrics; read-only `watchdog:alert-parity`. All three `IRA_WATCHDOG_*_HYGIENE_ENABLED` flags default false; no production enablement in this release.
