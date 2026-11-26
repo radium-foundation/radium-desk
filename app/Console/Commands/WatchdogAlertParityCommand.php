@@ -18,36 +18,18 @@ class WatchdogAlertParityCommand extends Command
 
     public function handle(ProductionWatchdogService $watchdog): int
     {
-        $original = [
-            'radiumbox' => config('ira.watchdog.radiumbox_hygiene_enabled'),
-            'dead_letter' => config('ira.watchdog.dead_letter_hygiene_enabled'),
-            'bonvoice' => config('ira.watchdog.bonvoice_hygiene_enabled'),
-        ];
-
         $streams = ['radiumbox:sync_failures', 'queue:dead_letter', 'bonvoice:webhook_failures'];
 
+        $legacyByKey = [];
+        $hygieneByKey = [];
+        $hygieneMetrics = [];
+
         try {
-            config([
-                'ira.watchdog.radiumbox_hygiene_enabled' => false,
-                'ira.watchdog.dead_letter_hygiene_enabled' => false,
-                'ira.watchdog.bonvoice_hygiene_enabled' => false,
-            ]);
-            $legacyByKey = $this->indexAlerts($watchdog->collectCriticalAlerts(), $streams);
-
-            config([
-                'ira.watchdog.radiumbox_hygiene_enabled' => true,
-                'ira.watchdog.dead_letter_hygiene_enabled' => true,
-                'ira.watchdog.bonvoice_hygiene_enabled' => true,
-            ]);
-            $hygieneByKey = $this->indexAlerts($watchdog->collectCriticalAlerts(), $streams);
-
+            $legacyByKey = $this->indexAlerts($watchdog->collectParityAlerts(false), $streams);
+            $hygieneByKey = $this->indexAlerts($watchdog->collectParityAlerts(true), $streams);
             $hygieneMetrics = app(WatchdogHygieneMetricsService::class)->snapshot();
-        } finally {
-            config([
-                'ira.watchdog.radiumbox_hygiene_enabled' => $original['radiumbox'],
-                'ira.watchdog.dead_letter_hygiene_enabled' => $original['dead_letter'],
-                'ira.watchdog.bonvoice_hygiene_enabled' => $original['bonvoice'],
-            ]);
+        } catch (\Throwable $e) {
+            throw $e;
         }
 
         $this->line('watchdog_alert_parity');
