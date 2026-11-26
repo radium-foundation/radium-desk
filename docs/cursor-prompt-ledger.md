@@ -1414,4 +1414,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 | RadiumDesk-P-26-06 | 2026-11-26 | **P-26-06** Clear v4.1.125 pre-deploy blockers (CHANGELOG + dry-run) | **HIGH.** Worktree **`.worktrees/p26-05-v4125-release-prep`**; restore **4.1.124** + add **4.1.125** changelog; **`DEPLOY_KVM_BRANCH_OVERRIDE`** dry-run. **NO** deploy/tag/prod mutation. Cursor agent session. |
 | RadiumDesk-P-26-10 | 2026-11-26 | **P-26-10** Zero-side-effect watchdog alert parity (draft PR) | **HIGH.** Worktree **`.worktrees/p26-10-watchdog-parity-zero-side-effect`**; **`collectParityAlerts`** + immutability tests. **NO** merge/deploy/prod parity. Cursor **`bd0ac5bd-88f0-48e0-aacd-66eca9be9aef`**. |
 
+| RadiumDesk-P-26-26 | 2026-11-26 | **P-26-26** P-01-60 verified-email CW spend — Desk (PIYA 24) | **RISK HIGH.** `WalletSpendEligibilityService` + reservation spend authorization + default-off flag `CENTRAL_WALLET_P01_60_VERIFIED_EMAIL_SPEND_ENABLED`. PHPUnit: P01_60 + visibility + reservation. **NO** prod deploy/flag. Cursor **`bd0ac5bd-88f0-48e0-aacd-66eca9be9aef`**. |
+
 Do not renumber or overwrite earlier rows. Append only.

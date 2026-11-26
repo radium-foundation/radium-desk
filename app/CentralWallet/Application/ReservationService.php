@@ -19,6 +19,7 @@ final class ReservationService
         private readonly LedgerService $ledger,
         private readonly ReservationStateMachine $stateMachine,
         private readonly AuditEventRecorder $auditEvents,
+        private readonly ReservationSpendAuthorizationService $spendAuthorization,
     ) {}
 
     public function create(
@@ -135,6 +136,7 @@ final class ReservationService
             }
 
             $this->assertCallerOwnsReservation($reservation, $callerId);
+            $this->spendAuthorization->assertCommitAllowed($reservation, $callerId);
 
             if ($reservation->state === ReservationState::Committed) {
                 $entry = $reservation->ledger_entry_id !== null

@@ -4,6 +4,7 @@ namespace App\CentralWallet\Infrastructure\Http\Controllers;
 
 use App\CentralWallet\Application\IdempotencyService;
 use App\CentralWallet\Application\ReservationService;
+use App\CentralWallet\Application\ReservationSpendAuthorizationService;
 use App\CentralWallet\Domain\Cwid;
 use App\CentralWallet\Infrastructure\Persistence\CentralWalletReservation;
 use Illuminate\Http\JsonResponse;
@@ -15,6 +16,7 @@ final class ReservationController
     public function __construct(
         private readonly ReservationService $reservations,
         private readonly IdempotencyService $idempotency,
+        private readonly ReservationSpendAuthorizationService $spendAuthorization,
     ) {}
 
     public function store(Request $request): JsonResponse
@@ -26,6 +28,11 @@ final class ReservationController
             'business_reference' => ['required', 'string', 'max:191'],
             'source_reference' => ['nullable', 'string', 'max:191'],
             'metadata' => ['nullable', 'array'],
+            'spend_authorization' => ['nullable', 'array'],
+            'spend_authorization.site_code' => ['required_with:spend_authorization', 'string', 'max:64'],
+            'spend_authorization.local_user_id' => ['required_with:spend_authorization', 'string', 'max:64'],
+            'spend_authorization.email' => ['required_with:spend_authorization', 'string', 'max:255'],
+            'spend_authorization.email_verified' => ['required_with:spend_authorization'],
         ]);
 
         try {
@@ -35,6 +42,11 @@ final class ReservationController
         }
 
         $callerId = (string) $request->attributes->get('central_wallet_caller_id');
+        $headerSite = strtolower(trim((string) $request->header('X-Site-Code', '')));
+        if ($headerSite !== '' && $headerSite !== strtolower(trim($callerId))) {
+            return response()->json(['error' => 'site_mismatch'], 403);
+        }
+
         $correlationId = (string) $request->attributes->get('central_wallet_correlation_id');
         $requestHash = hash('sha256', json_encode($validated, JSON_THROW_ON_ERROR));
 
@@ -44,6 +56,18 @@ final class ReservationController
             $requestHash,
             function () use ($validated, $callerId, $correlationId): array {
                 try {
+                    $authorizationMetadata = $this->spendAuthorization->authorizeCreate(
+                        callerId: $callerId,
+                        requestedCentralWalletId: $validated['central_wallet_id'],
+                        amount: $validated['amount'],
+                        spendAuthorization: $validated['spend_authorization'] ?? null,
+                    );
+
+                    $metadata = array_merge(
+                        $validated['metadata'] ?? [],
+                        $authorizationMetadata,
+                    );
+
                     $reservation = $this->reservations->create(
                         centralWalletId: $validated['central_wallet_id'],
                         callerId: $callerId,
@@ -51,17 +75,10 @@ final class ReservationController
                         businessReference: $validated['business_reference'],
                         correlationId: $correlationId,
                         sourceReference: $validated['source_reference'] ?? null,
-                        metadata: $validated['metadata'] ?? [],
+                        metadata: $metadata,
                     );
                 } catch (InvalidArgumentException $exception) {
-                    $error = str_contains($exception->getMessage(), 'Insufficient')
-                        ? 'insufficient_balance'
-                        : 'reservation_create_failed';
-
-                    return [
-                        'status' => 422,
-                        'body' => ['error' => $error, 'message' => $exception->getMessage()],
-                    ];
+                    return $this->reservationCreateFailure($exception);
                 }
 
                 return [
@@ -179,6 +196,37 @@ final class ReservationController
     /**
      * @return array<string, mixed>
      */
+    /**
+     * @return array{status: int, body: array<string, mixed>}
+     */
+    private function reservationCreateFailure(InvalidArgumentException $exception): array
+    {
+        $message = $exception->getMessage();
+        $status = 422;
+        $error = 'reservation_create_failed';
+
+        if ($message === 'site_mismatch') {
+            $status = 403;
+            $error = 'site_mismatch';
+        } elseif ($message === 'identity_not_found') {
+            $status = 404;
+            $error = 'not_found';
+        } elseif ($message === 'cwid_mismatch') {
+            $error = 'cwid_mismatch';
+        } elseif ($message === 'p01_60_spend_disabled') {
+            $error = 'p01_60_spend_disabled';
+        } elseif (in_array($message, ['spend_authorization_denied', 'spend_authorization_incomplete'], true)) {
+            $error = 'spend_authorization_denied';
+        } elseif (str_contains($message, 'Insufficient')) {
+            $error = 'insufficient_balance';
+        }
+
+        return [
+            'status' => $status,
+            'body' => ['error' => $error, 'message' => $message],
+        ];
+    }
+
     private function reservationBody(CentralWalletReservation $reservation): array
     {
         return [
