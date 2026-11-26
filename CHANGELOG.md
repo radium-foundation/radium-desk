@@ -1,5 +1,15 @@
 # Changelog
 
+## 4.1.127 — 2026-11-26 — P-01-60 verified-email Central Wallet spend authorization (P-26-26 / PR #442)
+
+- **Central Wallet (PR #442 / P-26-26):** Policy **P-01-60** verified-email spend authorization for integrated spokes. `WalletSpendEligibilityService` gates spendability; `ReservationSpendAuthorizationService` validates Desk-resolved wallet identity, balance, and eligibility at reservation create and binds immutable authorization metadata through commit.
+- **Reservations:** Optional `spend_authorization` on reservation create when flag enabled; legacy trusted-link path unchanged when attestation omitted. Fail-closed on site mismatch, CWID mismatch, insufficient balance, unverified email, or disabled policy.
+- **Idempotency:** Bounded InnoDB deadlock retries (`DB::transaction(..., 5)`) on `IdempotencyService::execute` (concurrent reservation/idempotency races).
+- **Feature flag:** `CENTRAL_WALLET_P01_60_VERIFIED_EMAIL_SPEND_ENABLED` defaults **false** in `config/central_wallet.php`. **No production enablement** in this release.
+- **Migrations:** `DEPLOY_RUN_MIGRATIONS=0` (no new schema).
+- Rollback target: v4.1.126 / `fe1aa4d7a045c4d3bd41f9150c45d0d2fb5369dc`.
+- **Note:** Production continues on v4.1.126 until a separately authorized P-26-26G deployment.
+
 ## 4.1.126 — 2026-11-26 — Zero-side-effect watchdog alert parity (P-26-10 / PR #440)
 
 - **Watchdog parity (PR #440 / P-26-10):** `ProductionWatchdogService::collectParityAlerts()` for the three hygiene streams only (`radiumbox:sync_failures`, `queue:dead_letter`, `bonvoice:webhook_failures`) without `recordUptimeProbe()`, alert-gate, or `OperationsRadiumBoxHealthService::widget()` cache writes. Legacy RadiumBox counts use `RadiumBoxWatchdogSyncFailureReadModel` (DB-only).
