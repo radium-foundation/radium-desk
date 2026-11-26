@@ -8,6 +8,7 @@ use App\Enums\AutomationExecutionStatus;
 use App\Enums\OperationsHealthStatus;
 use App\Enums\PlatformHealthStatus;
 use App\Enums\QueueWorkerMode;
+use App\Enums\RadiumBoxEnrichmentSyncStatus;
 use App\Infrastructure\Queue\QueueDeadLetterCopy;
 use App\Infrastructure\Queue\QueueMetricsService;
 use App\Models\AutomationExecution;
@@ -15,6 +16,7 @@ use App\Models\BonvoiceWebhookLog;
 use App\Models\CashfreeWebhookLog;
 use App\Models\InteraktMessage;
 use App\Models\InteraktWebhookLog;
+use App\Models\Order;
 use App\ReadModels\Integrations\CashfreeIntegrityReadModel;
 use App\ReadModels\Operations\RadiumBoxWatchdogSyncFailureReadModel;
 use App\Services\Backup\BackupWatchdogService;
@@ -70,6 +72,33 @@ class ProductionWatchdogService
 
         $isHealthy = $alerts === [];
         $this->recordUptimeProbe($isHealthy);
+
+        return $alerts;
+    }
+
+    /**
+     * Parity-only collection for the three hygiene streams (no uptime cache, gate, or probe side effects).
+     *
+     * @return list<ProductionCriticalAlert>
+     */
+    public function collectParityAlerts(bool $hygieneEnabled): array
+    {
+        $alerts = [];
+
+        $radiumBox = $this->parityRadiumBoxSyncFailureAlert($hygieneEnabled);
+        if ($radiumBox !== null) {
+            $alerts[] = $radiumBox;
+        }
+
+        $deadLetter = $this->parityQueueDeadLetterAlert($hygieneEnabled);
+        if ($deadLetter !== null) {
+            $alerts[] = $deadLetter;
+        }
+
+        $alerts = [
+            ...$alerts,
+            ...$this->parityBonvoiceWebhookFailuresAlert($hygieneEnabled),
+        ];
 
         return $alerts;
     }
@@ -518,6 +547,166 @@ class ProductionWatchdogService
     private function bonvoiceHygieneEnabled(): bool
     {
         return (bool) config('ira.watchdog.bonvoice_hygiene_enabled', false);
+    }
+
+    /**
+     * DB-only legacy RadiumBox sync failure alert (avoids OperationsRadiumBoxHealthService::widget cache writes).
+     */
+    private function parityRadiumBoxSyncFailureAlert(bool $hygieneEnabled): ?ProductionCriticalAlert
+    {
+        $readModel = app(RadiumBoxWatchdogSyncFailureReadModel::class);
+        $summary = $readModel->summarize();
+
+        if ($hygieneEnabled) {
+            $actionableCount = (int) $summary['actionable_count'];
+            if ($actionableCount < 1) {
+                return null;
+            }
+
+            $backlogParts = [];
+            if (($summary['aging_count'] ?? 0) > 0) {
+                $backlogParts[] = sprintf('%d aging', (int) $summary['aging_count']);
+            }
+            if (($summary['debt_count'] ?? 0) > 0) {
+                $backlogParts[] = sprintf('%d historical', (int) $summary['debt_count']);
+            }
+            if (($summary['excluded_prefix_count'] ?? 0) > 0) {
+                $backlogParts[] = sprintf('%d excluded-prefix', (int) $summary['excluded_prefix_count']);
+            }
+
+            $message = sprintf(
+                '%d recent RadiumBox sync failure(s) require attention.',
+                $actionableCount,
+            );
+            if ($backlogParts !== []) {
+                $message .= ' ('.implode(', ', $backlogParts).' in evening backlog).';
+            }
+
+            return new ProductionCriticalAlert(
+                key: 'radiumbox:sync_failures',
+                label: 'RadiumBox',
+                message: $message,
+                affectedCount: $actionableCount,
+                orderIds: array_values($summary['actionable_order_ids'] ?? []),
+                incidentIdentity: (string) ($summary['actionable_incident_identity'] ?? ''),
+            );
+        }
+
+        $failedSyncs = (int) $summary['legacy_failed_count'];
+        if ($failedSyncs < 1) {
+            return null;
+        }
+
+        $orderIds = [];
+        if (Order::supportsRadiumBoxSyncTracking()) {
+            $orderIds = Order::query()
+                ->where('radiumbox_sync_status', RadiumBoxEnrichmentSyncStatus::Failed)
+                ->orderByDesc('radiumbox_last_sync_at')
+                ->limit(5)
+                ->pluck('order_id')
+                ->map(fn ($id): string => (string) $id)
+                ->all();
+        }
+
+        return new ProductionCriticalAlert(
+            key: 'radiumbox:sync_failures',
+            label: 'RadiumBox',
+            message: sprintf(
+                '%d RadiumBox sync failure(s) require attention.',
+                $failedSyncs,
+            ),
+            affectedCount: $failedSyncs,
+            orderIds: array_values(array_filter($orderIds)),
+        );
+    }
+
+    private function parityQueueDeadLetterAlert(bool $hygieneEnabled): ?ProductionCriticalAlert
+    {
+        if (! QueueWorkerMode::fromConfig()->isActive()) {
+            return null;
+        }
+
+        if ($hygieneEnabled) {
+            $summary = app(WatchdogDeadLetterClassifier::class)->summarize();
+            $uuids = $summary['actionable_uuids'];
+            if ($uuids === []) {
+                return null;
+            }
+
+            $count = (int) $summary['actionable_count'];
+            $workerMode = QueueWorkerMode::fromConfig()->value;
+            $backlog = (int) $summary['legacy_total'] - $count;
+
+            $detail = $backlog > 0
+                ? sprintf(
+                    'Queue worker (%s): %d actionable failed job(s) in the dead-letter queue (+%d historical/recovered backlog).',
+                    $workerMode,
+                    $count,
+                    max(0, $backlog),
+                )
+                : QueueDeadLetterCopy::detail($workerMode, $count);
+
+            return new ProductionCriticalAlert(
+                key: 'queue:dead_letter',
+                label: 'Queue',
+                message: $detail,
+                affectedCount: $count,
+                incidentIdentity: implode(',', $uuids),
+            );
+        }
+
+        $uuids = $this->queueMetrics->failedJobUuids();
+        if ($uuids === []) {
+            return null;
+        }
+
+        $count = count($uuids);
+
+        return new ProductionCriticalAlert(
+            key: 'queue:dead_letter',
+            label: 'Queue',
+            message: QueueDeadLetterCopy::detail(QueueWorkerMode::fromConfig()->value, $count),
+            affectedCount: $count,
+            incidentIdentity: implode(',', $uuids),
+        );
+    }
+
+    /**
+     * @return list<ProductionCriticalAlert>
+     */
+    private function parityBonvoiceWebhookFailuresAlert(bool $hygieneEnabled): array
+    {
+        if (! $this->tableExists('bonvoice_webhook_logs')) {
+            return [];
+        }
+
+        $logs = BonvoiceWebhookLog::query()
+            ->where('processing_status', BonvoiceWebhookLog::STATUS_FAILED)
+            ->where('received_at', '>=', now()->subHours(24))
+            ->get();
+
+        if ($hygieneEnabled) {
+            $counts = app(WatchdogBonvoiceWebhookFailureClassifier::class)->countsForRecentFailures($logs);
+            $recentFailures = (int) $counts['critical_count'];
+        } else {
+            $recentFailures = $logs->count();
+        }
+
+        if ($recentFailures === 0) {
+            return [];
+        }
+
+        return [
+            new ProductionCriticalAlert(
+                key: 'bonvoice:webhook_failures',
+                label: 'BonVoice',
+                message: sprintf(
+                    '%d BonVoice webhook failure(s) in the last 24 hours.',
+                    $recentFailures,
+                ),
+                affectedCount: $recentFailures,
+            ),
+        ];
     }
 
     /**
