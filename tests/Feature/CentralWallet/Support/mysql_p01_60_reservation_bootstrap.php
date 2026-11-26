@@ -1,10 +1,13 @@
 <?php
 
+use App\CentralWallet\Domain\Enums\LedgerEntryStatus;
+use App\CentralWallet\Domain\Enums\LedgerEntryType;
+use App\CentralWallet\Infrastructure\Persistence\CentralWalletLedgerEntry;
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Contracts\Http\Kernel as HttpKernel;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Application;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\Feature\CentralWallet\Support\P01_60ReservationMysqlGate;
 
@@ -66,6 +69,7 @@ function p01_60_reservation_mysql_boot_app(array $credentials, string $integrati
     $app->make(Kernel::class)->bootstrap();
 
     config([
+        'app.debug' => filter_var(getenv('P01_60_RESERVATION_HTTP_DEBUG') ?: 'false', FILTER_VALIDATE_BOOLEAN),
         'database.default' => 'mysql',
         'database.connections.mysql.host' => $credentials['host'],
         'database.connections.mysql.port' => $credentials['port'],
@@ -93,33 +97,43 @@ function p01_60_reservation_mysql_boot_app(array $credentials, string $integrati
  */
 function p01_60_reservation_http_post(Application $app, array $context, string $uri, array $body): array
 {
-    $kernel = $app->make(HttpKernel::class);
-    $request = Request::create($uri, 'POST', $body);
-    $request->headers->set('Authorization', 'Bearer '.(string) $context['integration_token']);
-    $request->headers->set('X-Site-Code', (string) $context['site_code']);
-    $request->headers->set('Accept', 'application/json');
-    $response = $kernel->handle($request);
-    $decoded = json_decode((string) $response->getContent(), true);
+    try {
+        $kernel = $app->make(HttpKernel::class);
+        $request = Request::create($uri, 'POST', $body);
+        $request->headers->set('Authorization', 'Bearer '.(string) $context['integration_token']);
+        $request->headers->set('X-Site-Code', (string) $context['site_code']);
+        $request->headers->set('Accept', 'application/json');
+        $response = $kernel->handle($request);
+        $raw = (string) $response->getContent();
+        $decoded = json_decode($raw, true);
 
-    return [
-        'http_status' => $response->getStatusCode(),
-        'body' => $decoded,
-    ];
+        return [
+            'http_status' => $response->getStatusCode(),
+            'body' => $decoded,
+            'raw' => $raw,
+        ];
+    } catch (Throwable $exception) {
+        return [
+            'http_status' => 500,
+            'body' => null,
+            'exception_class' => $exception::class,
+            'exception_message' => $exception->getMessage(),
+            'sql_state' => $exception instanceof QueryException ? $exception->errorInfo[0] ?? null : null,
+            'sql_vendor_code' => $exception instanceof QueryException ? (int) ($exception->errorInfo[1] ?? 0) : null,
+        ];
+    }
 }
 
 function p01_60_reservation_credit_balance(string $centralWalletId, string $amount, string $siteCode): void
 {
-    DB::table('central_wallet_ledger_entries')->insert([
-        'id' => (string) Str::uuid(),
+    CentralWalletLedgerEntry::query()->create([
         'central_wallet_id' => $centralWalletId,
-        'entry_type' => 'credit',
+        'entry_type' => LedgerEntryType::Credit,
         'amount' => $amount,
         'currency' => 'INR',
-        'status' => 'posted',
+        'status' => LedgerEntryStatus::Posted,
         'source_system' => $siteCode,
         'correlation_id' => (string) Str::uuid(),
         'posted_at' => now(),
-        'created_at' => now(),
-        'updated_at' => now(),
     ]);
 }

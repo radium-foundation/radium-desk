@@ -64,7 +64,18 @@ try {
         $insufficient = ($response['http_status'] ?? 0) === 422
             && (($body['error'] ?? '') === 'insufficient_balance' || str_contains((string) ($body['message'] ?? ''), 'Insufficient'));
 
-        file_put_contents($resultPath, json_encode([
+        $diagnostics = [];
+        if (($response['http_status'] ?? 0) >= 500) {
+            $diagnostics = array_filter([
+                'exception_class' => $response['exception_class'] ?? null,
+                'exception_message' => $response['exception_message'] ?? null,
+                'sql_state' => $response['sql_state'] ?? null,
+                'sql_vendor_code' => $response['sql_vendor_code'] ?? null,
+                'response_raw' => isset($response['raw']) ? substr((string) $response['raw'], 0, 500) : null,
+            ]);
+        }
+
+        file_put_contents($resultPath, json_encode(array_merge([
             'ok' => $created || $insufficient,
             'validation' => $insufficient,
             'created' => $created,
@@ -74,7 +85,7 @@ try {
             'worker' => $workerLabel,
             'elapsed_ms' => (int) round((microtime(true) - $started) * 1000),
             'connection_id' => $connectionId,
-        ], JSON_THROW_ON_ERROR));
+        ], $diagnostics), JSON_THROW_ON_ERROR));
         exit(0);
     }
 
@@ -97,7 +108,18 @@ try {
         $ok = in_array($httpStatus, [200, 201], true);
         $idempotentReplay = ($body['idempotent_replay'] ?? false) === true;
 
-        file_put_contents($resultPath, json_encode([
+        $diagnostics = [];
+        if ($httpStatus >= 500) {
+            $diagnostics = array_filter([
+                'exception_class' => $response['exception_class'] ?? null,
+                'exception_message' => $response['exception_message'] ?? null,
+                'sql_state' => $response['sql_state'] ?? null,
+                'sql_vendor_code' => $response['sql_vendor_code'] ?? null,
+                'response_raw' => isset($response['raw']) ? substr((string) $response['raw'], 0, 500) : null,
+            ]);
+        }
+
+        file_put_contents($resultPath, json_encode(array_merge([
             'ok' => $ok || $idempotentReplay,
             'http_status' => $httpStatus,
             'idempotent_replay' => $idempotentReplay,
@@ -106,7 +128,7 @@ try {
             'worker' => $workerLabel,
             'elapsed_ms' => (int) round((microtime(true) - $started) * 1000),
             'connection_id' => $connectionId,
-        ], JSON_THROW_ON_ERROR));
+        ], $diagnostics), JSON_THROW_ON_ERROR));
         exit(0);
     }
 

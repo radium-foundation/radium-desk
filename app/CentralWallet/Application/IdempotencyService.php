@@ -78,7 +78,7 @@ final class IdempotencyService
                 'status' => $result['status'],
                 'body' => $sanitizedBody,
             ];
-        });
+        }, 5);
     }
 
     public function purgeExpired(): int
