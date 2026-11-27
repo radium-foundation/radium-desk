@@ -1,5 +1,15 @@
 # Changelog
 
+## 4.1.130 — 2026-11-27 — Hardware preship cancel JSON errors + centered modal (P-27-05 / PR #445)
+
+- **Pre-shipment cancellation (PR #445 / P-27-05):** Include `orders.pre-shipment-cancellations.store` and `preflight` in `shouldRenderJsonWhen` so JSON clients receive **422** validation/eligibility bodies instead of **302** HTML redirects when `expectsJson()` or `ajax()`.
+- **Hardware Dashboard:** Compact centered Bootstrap overlay for cancel submission; `workspaceFetch` with status-specific operator messaging (401/403/419/422/5xx), field-level errors, duplicate-submit guard, and focus restore.
+- **Migrations:** `DEPLOY_RUN_MIGRATIONS=0` (no new schema).
+- **Seeder:** `DEPLOY_RUN_ROLE_PERMISSION_SEED=0` (no new permissions).
+- **Protected configuration:** preserve all ten production flags as on v4.1.129, including `pre_shipment_cancellation.enabled` and P-01-60 / desk-first wallet flags.
+- Rollback target: v4.1.129 / `7dcd90b273aa22950f182794a002a102f214f7ae`.
+- Merge commit (PR #445): `9bdaf11abbdf35d2592737908a4b4a06abebf383`.
+
 ## 4.1.129 — 2026-11-27 — Hardware Dashboard pre-shipment cancel + Finance operator metadata (P-27-01 / P-27-02 / PR #444)
 
 - **Hardware Dashboard (PR #444 / P-27-01):** `?workspace=hardware` selection toolbar **Cancel order** modal reusing Phase 2 pre-shipment cancellation (preflight JSON, refund preference wallet/OPM, operator notes); row reload via `hardware:request-reload`.
