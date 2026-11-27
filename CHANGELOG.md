@@ -1,5 +1,15 @@
 # Changelog
 
+## 4.1.131 — 2026-11-27 — Pre-shipment `blocker_reason` storage fix (P-27-08 / PR #446)
+
+- **Pre-shipment cancellation (PR #446 / P-27-08):** Widen `pre_shipment_cancellation_requests.blocker_reason` from **varchar(64)** to **TEXT** so `psc_meta:` JSON (wallet/OPM preference + operator notes) persists without MariaDB **22001** truncation (production incident **RBP1564**).
+- **Migration:** `2026_11_27_170000_widen_preship_cancellation_blocker_reason_column.php` — **`DEPLOY_RUN_MIGRATIONS=1` required** on the P-27-10 deploy that applies v4.1.131; application code alone does not fix production.
+- **Rollback:** Reverting application code without running migration `down()` leaves **TEXT** in place (harmless). Running `down()` restores **varchar(64)** and will **fail or truncate** if any row stores encoded metadata longer than 64 bytes — verify row lengths before rollback.
+- **Seeder:** `DEPLOY_RUN_ROLE_PERMISSION_SEED=0`.
+- **Protected configuration:** preserve all ten production flags as on v4.1.130.
+- Rollback target: v4.1.130 / `b1d4b97e88c1e33f54bbcbe09b167c5aab8cd8dc`.
+- Merge commit (PR #446): `5e5e63419e30aebde306ba22c401ab8c31145c5b`.
+
 ## 4.1.130 — 2026-11-27 — Hardware preship cancel JSON errors + centered modal (P-27-05 / PR #445)
 
 - **Pre-shipment cancellation (PR #445 / P-27-05):** Include `orders.pre-shipment-cancellations.store` and `preflight` in `shouldRenderJsonWhen` so JSON clients receive **422** validation/eligibility bodies instead of **302** HTML redirects when `expectsJson()` or `ajax()`.
