@@ -1,5 +1,15 @@
 # Changelog
 
+## 4.1.129 — 2026-11-27 — Hardware Dashboard pre-shipment cancel + Finance operator metadata (P-27-01 / P-27-02 / PR #444)
+
+- **Hardware Dashboard (PR #444 / P-27-01):** `?workspace=hardware` selection toolbar **Cancel order** modal reusing Phase 2 pre-shipment cancellation (preflight JSON, refund preference wallet/OPM, operator notes); row reload via `hardware:request-reload`.
+- **Finance display (PR #444 / P-27-02):** Central queue and show views surface refund preference and operator notes parsed from `psc_meta` operator metadata (`PreShipmentCancellationOperatorMetadataPresentation`); legacy/malformed payloads handled safely.
+- **Migrations:** `DEPLOY_RUN_MIGRATIONS=0` (no new schema).
+- **Seeder:** `DEPLOY_RUN_ROLE_PERMISSION_SEED=0` (existing `preship_cancellations.submit` RBAC only; no new permissions).
+- **Protected configuration:** preserve all nine production flags as on v4.1.128, including `pre_shipment_cancellation.enabled` and P-01-60 spend flag (default off).
+- Rollback target: v4.1.128 / `044096379b8a95c3cb2774659cc55267dd093036`.
+- Merge commit (PR #444): `1daf74c1f731e9f3e136220d0c5fd53d02b30ef4`.
+
 ## 4.1.127 — 2026-11-26 — P-01-60 verified-email Central Wallet spend authorization (P-26-26 / PR #442)
 
 - **Central Wallet (PR #442 / P-26-26):** Policy **P-01-60** verified-email spend authorization for integrated spokes. `WalletSpendEligibilityService` gates spendability; `ReservationSpendAuthorizationService` validates Desk-resolved wallet identity, balance, and eligibility at reservation create and binds immutable authorization metadata through commit.
