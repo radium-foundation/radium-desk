@@ -19,6 +19,7 @@ use App\Services\IncidentReferenceService;
 use App\Services\Inquiry\InquiryOrderLinkService;
 use App\Services\OrderIdentityLifecycleService;
 use App\Services\RadiumBox\RadiumBoxOrderSearchResponseMapper;
+use App\Support\CashfreeRdServiceInMerchantOrderId;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -191,7 +192,7 @@ class CashfreeWebhookProcessorService
                 $existingIncident = $this->findExistingIncidentForPayment($cfPaymentId);
                 $businessOrderId = $this->payloadParser->orderId($payload);
                 $existingOrder = $businessOrderId !== null
-                    ? $this->findExistingOrderByBusinessOrderId($businessOrderId)
+                    ? $this->findExistingOrderByCashfreeMerchantOrderId($businessOrderId)
                     : null;
 
                 return [
@@ -235,7 +236,7 @@ class CashfreeWebhookProcessorService
 
             $businessOrderId = $this->payloadParser->orderId($payload);
             $existingOrder = $businessOrderId !== null
-                ? $this->findExistingOrderByBusinessOrderId($businessOrderId)
+                ? $this->findExistingOrderByCashfreeMerchantOrderId($businessOrderId)
                 : null;
 
             if ($existingOrder !== null) {
@@ -366,7 +367,7 @@ class CashfreeWebhookProcessorService
             return null;
         }
 
-        $existingOrder = $this->findExistingOrderByBusinessOrderId($businessOrderId);
+        $existingOrder = $this->findExistingOrderByCashfreeMerchantOrderId($businessOrderId);
 
         if ($existingOrder === null) {
             return null;
@@ -394,6 +395,23 @@ class CashfreeWebhookProcessorService
         return Order::query()
             ->whereRaw('UPPER(order_id) = ?', [$normalizedOrderId])
             ->first();
+    }
+
+    private function findExistingOrderByCashfreeMerchantOrderId(string $providerOrderId): ?Order
+    {
+        $existing = $this->findExistingOrderByBusinessOrderId($providerOrderId);
+
+        if ($existing !== null) {
+            return $existing;
+        }
+
+        if (! CashfreeRdServiceInMerchantOrderId::isProviderOrderId($providerOrderId)) {
+            return null;
+        }
+
+        $canonical = CashfreeRdServiceInMerchantOrderId::toCanonicalBusinessOrderId($providerOrderId);
+
+        return $this->findExistingOrderByBusinessOrderId($canonical);
     }
 
     /**
@@ -648,17 +666,19 @@ class CashfreeWebhookProcessorService
      */
     private function createOrder(array $payload, string $cfPaymentId, User $systemUser): array
     {
-        $orderId = $this->payloadParser->orderId($payload);
+        $providerOrderId = $this->payloadParser->orderId($payload);
 
-        if ($orderId === null) {
+        if ($providerOrderId === null) {
             throw new RuntimeException('Cashfree webhook payload is missing order_id.');
         }
+
+        $deskBusinessOrderId = CashfreeRdServiceInMerchantOrderId::deskBusinessOrderIdForWebhookCreate($providerOrderId);
 
         $paymentDate = $this->payloadParser->paymentDate($payload);
         $identity = $this->resolveOrderTagIdentity($payload, $systemUser);
 
         $order = Order::query()->create([
-            'order_id' => $orderId,
+            'order_id' => $deskBusinessOrderId,
             'customer_name' => $this->payloadParser->customerName($payload),
             'customer_email' => $this->payloadParser->customerEmail($payload),
             'customer_phone' => $this->payloadParser->customerPhone($payload),

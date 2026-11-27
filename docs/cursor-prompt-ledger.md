@@ -1,5 +1,7 @@
 # Cursor prompt ledger (Radium Desk)
 
+| RadiumDesk-P-26-57 | 2026-11-27 | **P-26-57** Historical RDS reservation manifest + RDI-RD Cashfree webhook compatibility | Isolated worktree `.worktrees/p26-57-rds-rdi-compat` @ **`origin/main`** **`9a3304759`**. Manifest **391** reserved RadiumSign **`RDS*`** ids SHA **`247d054e…`**. PHPUnit focused **PASS**. PR open; **NO** merge/deploy. Cursor **`37209ee3-5c67-45ce-80eb-2f6308fd05e8`**. |
+
 In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was present in this repository or the GitHub remote; entries below are **only** tickets verified from committed/untracked docs already in this worktree. Gaps are not invented.
 
 | ID | Date | Title | Repo path / notes |
