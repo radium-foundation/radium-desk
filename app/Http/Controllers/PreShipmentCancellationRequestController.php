@@ -9,6 +9,8 @@ use App\Services\Orders\OrderPaymentBreakdownResolver;
 use App\Services\PreShipmentCancellation\PreShipmentCancellationEligibilityService;
 use App\Services\PreShipmentCancellation\PreShipmentCancellationSubmitService;
 use App\Support\PreShipmentCancellation\PreShipmentCancellationAccess;
+use App\Support\PreShipmentCancellation\PreShipmentCancellationOperatorMetadata;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\View\View;
 
@@ -45,7 +47,47 @@ class PreShipmentCancellationRequestController extends Controller
         ]);
     }
 
-    public function store(StorePreShipmentCancellationRequest $request, Order $order): RedirectResponse
+    public function preflight(Order $order): JsonResponse
+    {
+        $this->authorize('submit', PreShipmentCancellationRequest::class);
+
+        $assessment = $this->eligibility->assess($order);
+        $breakdown = null;
+        $breakdownError = null;
+
+        if ($assessment['eligible'] && $assessment['commerce'] !== null) {
+            try {
+                $breakdown = $this->paymentBreakdown->resolve($order, $assessment['commerce']);
+            } catch (\Throwable $throwable) {
+                $breakdownError = $throwable->getMessage();
+            }
+        }
+
+        $canSubmit = $assessment['eligible'] && $breakdown !== null;
+
+        return response()->json([
+            'order' => [
+                'id' => $order->id,
+                'order_id' => $order->order_id,
+            ],
+            'eligible' => $assessment['eligible'],
+            'eligibility_code' => $assessment['code']?->value,
+            'phase' => $assessment['phase'],
+            'can_submit' => $canSubmit,
+            'breakdown_error' => $breakdownError,
+            'payment_breakdown' => $breakdown === null ? null : [
+                'order_total' => $breakdown->orderTotal,
+                'external_tender' => $breakdown->externalTender,
+                'wallet_tender' => $breakdown->walletTender,
+                'already_refunded' => $breakdown->alreadyRefunded,
+                'maximum_refundable' => $breakdown->maximumRefundable,
+                'split_tender' => $breakdown->splitTender,
+            ],
+            'store_url' => route('orders.pre-shipment-cancellations.store', $order),
+        ]);
+    }
+
+    public function store(StorePreShipmentCancellationRequest $request, Order $order): RedirectResponse|JsonResponse
     {
         $validated = $request->validated();
         $idempotencyKey = (string) ($validated['idempotency_key'] ?? sprintf(
@@ -54,13 +96,28 @@ class PreShipmentCancellationRequestController extends Controller
             hash('sha256', $request->user()->id.'|'.($validated['cancellation_reason'] ?? ''))
         ));
 
+        $blockerReason = $validated['blocker_reason']
+            ?? PreShipmentCancellationOperatorMetadata::encode(
+                $validated['refund_preference'] ?? null,
+                $validated['operator_notes'] ?? null,
+            );
+
         $case = $this->submitService->submit($request->user(), $order, [
             'cancellation_reason' => $validated['cancellation_reason'],
-            'blocker_reason' => $validated['blocker_reason'] ?? null,
+            'blocker_reason' => $blockerReason,
             'shipment_verification' => $validated['shipment_verification'] ?? null,
             'requested_refund_amount' => $validated['requested_refund_amount'] ?? null,
             'idempotency_key' => $idempotencyKey,
         ]);
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'message' => 'Pre-shipment cancellation '.$case->reference_no.' submitted.',
+                'case_id' => $case->id,
+                'reference_no' => $case->reference_no,
+                'show_url' => route('pre-shipment-cancellations.show', $case),
+            ]);
+        }
 
         return redirect()
             ->route('pre-shipment-cancellations.show', $case)

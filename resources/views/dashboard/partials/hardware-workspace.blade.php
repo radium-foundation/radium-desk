@@ -7,6 +7,7 @@
     $operableFulfilmentIds = $hardwareWorkspace['operableFulfilmentIds'] ?? [];
     $canOperateHardware = (bool) ($hardwareWorkspace['canOperateHardware'] ?? false);
     $canDownloadDocuments = (bool) ($hardwareWorkspace['canDownloadDocuments'] ?? false);
+    $canPreshipCancel = (bool) ($hardwareWorkspace['canPreshipCancel'] ?? false);
     $search = $hardwareWorkspace['search'] ?? '';
     $isShippedScope = ($hardwareWorkspace['scope'] ?? HardwareWorkspaceScope::Active->value) === HardwareWorkspaceScope::Shipped->value;
     $skeletonCount = (int) ($hardwareWorkspace['skeleton_row_count'] ?? $hardwareWorkspace['initial_per_page'] ?? 10);
@@ -36,7 +37,8 @@
          data-hardware-download-manifests-url="{{ route('inventory.hardware-fulfilments.bulk.download.manifests') }}"
          data-hardware-download-package-url="{{ route('inventory.hardware-fulfilments.bulk.download.package') }}"
      @endif
-     @if($search !== '') data-hardware-search="{{ $search }}" @endif>
+     @if($search !== '') data-hardware-search="{{ $search }}" @endif
+     @if($canPreshipCancel) data-hardware-preship-cancel-enabled="1" @endif>
     <div class="dashboard-hardware-selection d-none" data-hardware-selection-bar hidden>
         <span class="dashboard-hardware-selection__count" data-hardware-selection-count>0 selected</span>
         <span class="dashboard-hardware-selection__eligible text-muted small d-none" data-hardware-selection-eligible></span>
@@ -61,6 +63,15 @@
                     disabled
                     title="ZIP of existing labels, manifests, and reconciliation.csv">
                 Download package
+            </button>
+        @endif
+        @if($canPreshipCancel)
+            <button type="button"
+                    class="btn btn-sm btn-outline-danger dashboard-btn-compact"
+                    data-hardware-cancel-order
+                    disabled
+                    title="Select exactly one eligible order to cancel">
+                Cancel order
             </button>
         @endif
         <button type="button"
@@ -104,6 +115,10 @@
                 </div>
             </div>
         </div>
+    @endif
+
+    @if($canPreshipCancel)
+        @include('dashboard.partials.hardware-preship-cancel-modal')
     @endif
 
     <div class="visually-hidden"

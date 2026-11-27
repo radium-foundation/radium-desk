@@ -11,6 +11,7 @@ use App\Services\Shipping\Data\ShiprocketWalletBalancePresentation;
 use App\Services\Shipping\ShiprocketWalletBalanceReadService;
 use App\Support\HardwareFulfilment\HardwareFulfilmentAccess;
 use App\Support\HardwareFulfilment\HardwareFulfilmentNavigation;
+use App\Support\PreShipmentCancellation\PreShipmentCancellationAccess;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -56,6 +57,7 @@ final class HardwareDashboardWorkspace
             'operableFulfilmentIds' => [],
             'canOperateHardware' => HardwareFulfilmentAccess::allows($request->user()),
             'canDownloadDocuments' => HardwareFulfilmentAccess::allowsDocumentDownload($request->user()),
+            'canPreshipCancel' => PreShipmentCancellationAccess::canSubmit($request->user()),
             'shiprocketBalance' => $this->walletBalance->presentFromCacheOnly($request->user()),
             'shiprocket_balance_pending' => $this->walletBalance->canView($request->user()),
             'unfilteredTotal' => null,

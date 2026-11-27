@@ -468,6 +468,12 @@ export const initHardwareDashboardAsync = (root = document) => {
     bindPagination(workspace, loadRows);
     bindDebouncedSearch(workspace, loadRows);
 
+    workspace.addEventListener('hardware:request-reload', () => {
+        clearHardwarePageCache(workspace);
+        delete workspace.dataset.hardwareRowsLoaded;
+        void loadRows({ searchChanged: true });
+    });
+
     void loadRows();
     void loadShiprocketBalance(workspace);
 };

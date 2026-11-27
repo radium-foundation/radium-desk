@@ -26,6 +26,8 @@ class StorePreShipmentCancellationRequest extends FormRequest
         return [
             'cancellation_reason' => ['required', 'string', 'min:10', 'max:2000'],
             'blocker_reason' => ['nullable', 'string', 'max:500'],
+            'refund_preference' => ['nullable', 'string', Rule::in(['wallet', 'opm'])],
+            'operator_notes' => ['nullable', 'string', 'max:500'],
             'shipment_verification' => [
                 'nullable',
                 Rule::enum(PreShipmentCancellationShipmentVerification::class),

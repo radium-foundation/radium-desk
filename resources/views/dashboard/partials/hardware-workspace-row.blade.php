@@ -29,6 +29,7 @@
     @if($incidentId) data-incident-id="{{ $incidentId }}" @endif
     data-search-text="{{ $searchText }}"
     data-hardware-order="{{ $row->sourceId }}"
+    @if($row->supportOrderId) data-hardware-support-order-id="{{ $row->supportOrderId }}" @endif
     @if($row->fulfilmentId) data-hardware-fulfilment-id="{{ $row->fulfilmentId }}" @endif
     data-hardware-queue="{{ $row->dashboardQueue()->value }}"
     data-hardware-next-action="{{ $row->nextAction }}">
@@ -38,6 +39,7 @@
                data-hardware-select
                value="{{ $row->fulfilmentId ?? $row->sourceId }}"
                @if($row->fulfilmentId) data-hardware-fulfilment-id="{{ $row->fulfilmentId }}" @endif
+               @if($row->supportOrderId) data-hardware-support-order-id="{{ $row->supportOrderId }}" @endif
                aria-label="Select {{ $row->sourceId }}">
     </td>
     <td class="case-order-cell">
