@@ -7,6 +7,13 @@ final class PreShipmentCancellationOperatorMetadata
     private const PREFIX = 'psc_meta:';
 
     /**
+     * Legacy production column was varchar(64); wallet preference JSON exceeds that for typical operator notes.
+     */
+    public const LEGACY_VARCHAR_LIMIT = 64;
+
+    public const MAX_ENCODED_LENGTH = 16_384;
+
+    /**
      * @return array{refund_preference: ?string, operator_notes: ?string}
      */
     public static function decode(?string $blockerReason): array
@@ -49,5 +56,12 @@ final class PreShipmentCancellationOperatorMetadata
             'refund_preference' => $refundPreference !== '' ? $refundPreference : null,
             'operator_notes' => $operatorNotes !== '' ? $operatorNotes : null,
         ], JSON_UNESCAPED_UNICODE);
+    }
+
+    public static function encodedLength(?string $refundPreference, ?string $operatorNotes): int
+    {
+        $encoded = self::encode($refundPreference, $operatorNotes);
+
+        return $encoded === null ? 0 : strlen($encoded);
     }
 }
