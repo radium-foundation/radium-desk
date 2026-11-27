@@ -31,6 +31,16 @@ class CashfreeWebhookPayloadParser
      */
     public function orderId(array $payload): ?string
     {
+        return $this->providerMerchantOrderId($payload);
+    }
+
+    /**
+     * Raw Cashfree merchant order_id (e.g. RDI-RD44162) as sent in PG webhooks.
+     *
+     * @param  array<string, mixed>  $payload
+     */
+    public function providerMerchantOrderId(array $payload): ?string
+    {
         return $this->scalarValue(data_get($payload, 'data.order.order_id'))
             ?? $this->scalarValue(data_get($payload, 'order_id'));
     }

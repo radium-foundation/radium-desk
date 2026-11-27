@@ -16,7 +16,6 @@ final class BusinessOrderId
         ['prefix' => 'RSP', 'kind' => 'product', 'owner' => 'radiumsign.com', 'hardware' => false],
         ['prefix' => 'RBX', 'kind' => 'gateway', 'owner' => 'radiumbox.com', 'hardware' => false],
         ['prefix' => 'RDE', 'kind' => 'product', 'owner' => 'radiumbox.com', 'hardware' => true],
-        ['prefix' => 'RDS', 'kind' => 'service', 'owner' => 'radiumsign.com', 'hardware' => false],
         ['prefix' => 'RIN', 'kind' => 'product', 'owner' => 'rdservice.in', 'hardware' => true],
         ['prefix' => 'RB', 'kind' => 'service', 'owner' => 'radiumbox.com', 'hardware' => false],
         ['prefix' => 'RD', 'kind' => 'service', 'owner' => 'rdservice.in', 'hardware' => false],
@@ -36,8 +35,21 @@ final class BusinessOrderId
         }
 
         $trimmed = strtoupper(trim($id));
+
+        if (CashfreeRdServiceInMerchantOrderId::isProviderOrderId($trimmed)) {
+            $trimmed = CashfreeRdServiceInMerchantOrderId::toCanonicalBusinessOrderId($trimmed);
+        }
+
+        $rdsParsed = self::parseRdsIdentifier($trimmed);
+        if ($rdsParsed !== null) {
+            return $rdsParsed;
+        }
+
         foreach (self::RULES as $rule) {
             $prefix = $rule['prefix'];
+            if ($prefix === 'RD' && str_starts_with($trimmed, 'RDS')) {
+                continue;
+            }
             if (preg_match('/^'.preg_quote($prefix, '/').'[0-9A-Z]{1,61}$/', $trimmed) === 1) {
                 return $rule + ['id' => $trimmed];
             }
@@ -79,5 +91,51 @@ final class BusinessOrderId
             && $parsed['prefix'] === 'RD'
             && $parsed['kind'] === 'service'
             && $parsed['owner'] === 'rdservice.in';
+    }
+
+    /**
+     * Canonical Desk business id (RD{n}) for parsing, enrichment and refunds.
+     */
+    public static function canonicalId(?string $id): ?string
+    {
+        if (! is_string($id) || trim($id) === '') {
+            return null;
+        }
+
+        $parsed = self::parse($id);
+
+        return $parsed['id'] ?? null;
+    }
+
+    /**
+     * @return array{prefix:string,kind:string,owner:string,hardware:bool,id:string}|null
+     */
+    private static function parseRdsIdentifier(string $trimmed): ?array
+    {
+        if (preg_match('/^RDS[0-9A-Z]{1,61}$/', $trimmed) !== 1) {
+            return null;
+        }
+
+        if (RadiumSignHistoricalRdsReservation::isReserved($trimmed)) {
+            return [
+                'prefix' => 'RDS',
+                'kind' => 'service',
+                'owner' => 'radiumsign.com',
+                'hardware' => false,
+                'id' => $trimmed,
+            ];
+        }
+
+        if (preg_match('/^RDS[0-9]+$/', $trimmed) !== 1) {
+            return null;
+        }
+
+        return [
+            'prefix' => 'RDS',
+            'kind' => 'service',
+            'owner' => 'rdservice.in',
+            'hardware' => false,
+            'id' => $trimmed,
+        ];
     }
 }

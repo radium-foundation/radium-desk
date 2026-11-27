@@ -24,10 +24,24 @@ class BusinessOrderIdTest extends TestCase
     {
         $this->assertSame('rdservice.net', BusinessOrderId::owner('RA32'));
         $this->assertSame('radiumsign.com', BusinessOrderId::owner('RDS366'));
+        $this->assertSame('radiumsign.com', BusinessOrderId::owner('RDS363'));
         $this->assertSame('radiumbox.com', BusinessOrderId::owner('RDE318516'));
         $this->assertSame('radiumbox.com', BusinessOrderId::owner('RBX3511545'));
         $this->assertSame('rdservice.in', BusinessOrderId::owner('RIN00001'));
         $this->assertSame('rdservice.in', BusinessOrderId::owner('RD3511756'));
+    }
+
+    public function test_non_reserved_numeric_rds_is_rdservice_in(): void
+    {
+        $this->assertSame('rdservice.in', BusinessOrderId::owner('RDS500'));
+        $this->assertNull(BusinessOrderId::parse('RDS'));
+        $this->assertNull(BusinessOrderId::parse('RDS36A'));
+    }
+
+    public function test_rdi_rd_namespace_resolves_to_canonical_rd(): void
+    {
+        $this->assertSame('RD44162', BusinessOrderId::canonicalId('RDI-RD44162'));
+        $this->assertTrue(BusinessOrderId::isRdServiceInService('RDI-RD44162'));
     }
 
     public function test_new_namespaces(): void

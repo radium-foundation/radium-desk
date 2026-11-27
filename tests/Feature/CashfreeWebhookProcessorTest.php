@@ -210,4 +210,50 @@ class CashfreeWebhookProcessorTest extends TestCase
 
         Queue::assertPushed(RadiumBoxOrderEnrichmentJob::class, 1);
     }
+
+    public function test_rdi_rd_webhook_persists_canonical_desk_order_id(): void
+    {
+        $payload = $this->successfulPayload('1453002796', 'RDI-RD44162');
+
+        $this->postJson('/api/webhooks/cashfree', $payload)->assertOk();
+
+        $order = Order::query()->where('cashfree_payment_id', '1453002796')->first();
+        $this->assertNotNull($order);
+        $this->assertSame('RD44162', $order->order_id);
+    }
+
+    public function test_rdi_rd_webhook_links_existing_legacy_provider_order_row(): void
+    {
+        $systemUser = User::query()->where('email', 'superadmin@radium.local')->firstOrFail();
+
+        Order::query()->create([
+            'order_id' => 'RDI-RD44162',
+            'customer_name' => 'Legacy',
+            'customer_email' => 'legacy@example.test',
+            'customer_phone' => '9000000001',
+            'cashfree_payment_id' => '9999000001',
+            'payment_amount' => '1.00',
+            'payment_method' => 'UPI',
+            'status' => 'active',
+            'created_by' => $systemUser->id,
+            'updated_by' => $systemUser->id,
+        ]);
+
+        $payload = $this->successfulPayload('1453002797', 'RDI-RD44162');
+
+        $this->postJson('/api/webhooks/cashfree', $payload)->assertOk();
+
+        $this->assertSame(1, Order::query()->whereRaw('UPPER(order_id) IN (?, ?)', ['RDI-RD44162', 'RD44162'])->count());
+        $this->assertNotNull(Order::query()->where('order_id', 'RDI-RD44162')->first());
+    }
+
+    public function test_rdi_rd_duplicate_webhook_is_idempotent_by_cf_payment_id(): void
+    {
+        $payload = $this->successfulPayload('1453002798', 'RDI-RD44163');
+
+        $this->postJson('/api/webhooks/cashfree', $payload)->assertOk();
+        $this->postJson('/api/webhooks/cashfree', $payload)->assertOk();
+
+        $this->assertSame(1, Order::query()->where('order_id', 'RD44163')->count());
+    }
 }
