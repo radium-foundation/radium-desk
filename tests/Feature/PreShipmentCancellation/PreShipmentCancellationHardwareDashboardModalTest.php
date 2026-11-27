@@ -277,6 +277,42 @@ class PreShipmentCancellationHardwareDashboardModalTest extends TestCase
         $this->assertSame(PreShipmentCancellationStatus::FinanceReview, $case->status);
     }
 
+    public function test_json_store_persists_rbp1564_reported_operator_metadata_on_text_blocker_reason(): void
+    {
+        config(['pre_shipment_cancellation.enabled' => true]);
+        Bus::fake([ClosePreShipmentCancellationIncidentJob::class]);
+        [$actor, $order] = $this->paidHardwareFixtures(
+            orderId: 'RBP1564',
+            hfState: HardwareFulfilmentState::ReadyForFulfilment,
+        );
+
+        $reason = 'Updated version not available';
+        $notes = 'Updated version not available';
+
+        $this->assertGreaterThan(
+            PreShipmentCancellationOperatorMetadata::LEGACY_VARCHAR_LIMIT,
+            PreShipmentCancellationOperatorMetadata::encodedLength('wallet', $notes),
+        );
+
+        $this->actingAs($actor)
+            ->postJson(route('orders.pre-shipment-cancellations.store', $order), [
+                'cancellation_reason' => $reason,
+                'refund_preference' => 'wallet',
+                'operator_notes' => $notes,
+                'idempotency_key' => 'psc-hw-rbp1564-length-'.$order->id,
+            ])
+            ->assertOk();
+
+        $case = PreShipmentCancellationRequest::query()->where('order_id', $order->id)->firstOrFail();
+        $this->assertGreaterThan(
+            PreShipmentCancellationOperatorMetadata::LEGACY_VARCHAR_LIMIT,
+            strlen((string) $case->blocker_reason),
+        );
+        $meta = PreShipmentCancellationOperatorMetadata::decode($case->blocker_reason);
+        $this->assertSame('wallet', $meta['refund_preference']);
+        $this->assertSame($notes, $meta['operator_notes']);
+    }
+
     public function test_opm_refund_preference_persists_in_blocker_reason(): void
     {
         config(['pre_shipment_cancellation.enabled' => true]);

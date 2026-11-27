@@ -363,7 +363,7 @@ Route::middleware(['auth', 'active'])->group(function () {
         ->name('refunds.reroute-execution-method');
     Route::resource('refunds', RefundRequestController::class)->except(['edit', 'update']);
 
-    // Pre-shipment cancellation routes (hardware dashboard JSON: bootstrap app shouldRenderJsonWhen).
+    // Pre-shipment cancellation routes (P-27-08 blocker_reason storage; hardware dashboard JSON).
     Route::middleware(['preship_cancellation.enabled'])->group(function (): void {
         Route::get('pre-shipment-cancellations/central-queue', [PreShipmentCancellationFinanceController::class, 'index'])
             ->name('pre-shipment-cancellations.central-queue');
