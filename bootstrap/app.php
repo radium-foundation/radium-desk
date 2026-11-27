@@ -374,6 +374,10 @@ return Application::configure(basePath: dirname(__DIR__))
                     && ($request->expectsJson() || $request->ajax()))
                 || ($request->is('inventory/hardware-fulfilments/*')
                     && ($request->expectsJson() || $request->ajax()))
+                || ($request->routeIs(
+                    'orders.pre-shipment-cancellations.store',
+                    'orders.pre-shipment-cancellations.preflight',
+                ) && ($request->expectsJson() || $request->ajax()))
                 || $request->is('dashboard/service-cases/*/oem-handoff/*'),
         );
     })->create();

@@ -1,4 +1,6 @@
-import { csrfToken } from './workspace/http';
+import * as bootstrap from 'bootstrap';
+import { csrfToken, workspaceFetch } from './workspace/http';
+import { WorkspaceRequestError } from './workspace/error-handler';
 import { showAppToast } from './core/toast';
 
 const formatInr = (value) => {
@@ -39,6 +41,53 @@ const setCancelButtonState = (button, { enabled, title }) => {
     }
 };
 
+const FIELD_NAMES = [
+    'cancellation_reason',
+    'refund_preference',
+    'operator_notes',
+    'order_id',
+    'fulfilment',
+    'commerce_order',
+    'requested_refund_amount',
+    'idempotency_key',
+];
+
+const firstErrorMessage = (errors) => {
+    if (!errors || typeof errors !== 'object') {
+        return null;
+    }
+
+    for (const field of FIELD_NAMES) {
+        const messages = errors[field];
+        if (Array.isArray(messages) && messages[0]) {
+            return String(messages[0]);
+        }
+        if (typeof messages === 'string' && messages !== '') {
+            return messages;
+        }
+    }
+
+    return null;
+};
+
+const parseJsonBody = async (response) => {
+    const contentType = response.headers.get('content-type') ?? '';
+
+    if (!contentType.includes('application/json')) {
+        return null;
+    }
+
+    try {
+        return await response.json();
+    } catch {
+        return null;
+    }
+};
+
+const requestIdFromResponse = (response) => response.headers.get('X-Request-Id')
+    ?? response.headers.get('x-request-id')
+    ?? null;
+
 export const initHardwareDashboardPreshipCancel = (root = document) => {
     const workspace = root.querySelector('[data-hardware-workspace]');
 
@@ -56,9 +105,17 @@ export const initHardwareDashboardPreshipCancel = (root = document) => {
         return;
     }
 
+    const modalApi = bootstrap.Modal.getOrCreateInstance(dialog, {
+        backdrop: true,
+        keyboard: true,
+        focus: true,
+    });
+
     let preflightAbort = null;
     let preflightToken = 0;
     let activePreflight = null;
+    let submitInFlight = false;
+    let lastFocusedElement = null;
 
     const closeButtons = workspace.querySelectorAll('[data-hardware-preship-cancel-close]');
 
@@ -71,20 +128,54 @@ export const initHardwareDashboardPreshipCancel = (root = document) => {
         element.hidden = !visible;
     };
 
+    const clearFieldErrors = () => {
+        workspace.querySelectorAll('[data-hardware-preship-field-error]').forEach((node) => {
+            node.textContent = '';
+        });
+        form.querySelectorAll('.is-invalid').forEach((input) => {
+            input.classList.remove('is-invalid');
+        });
+    };
+
+    const setFieldError = (field, message) => {
+        if (!message) {
+            return;
+        }
+
+        const node = workspace.querySelector(`[data-hardware-preship-field-error="${field}"]`);
+        if (node) {
+            node.textContent = message;
+        }
+
+        const control = form.querySelector(`[name="${field}"]`);
+        if (control && control instanceof HTMLElement) {
+            control.classList.add('is-invalid');
+        }
+    };
+
+    const setSubmitError = (message) => {
+        const submitError = workspace.querySelector('[data-hardware-preship-cancel-submit-error]');
+        if (!submitError) {
+            return;
+        }
+
+        if (message) {
+            submitError.textContent = message;
+            toggle(submitError, true);
+        } else {
+            submitError.textContent = '';
+            toggle(submitError, false);
+        }
+    };
+
     const resetDialog = () => {
         activePreflight = null;
         form.reset();
         if (idempotencyInput) {
             idempotencyInput.value = '';
         }
-        workspace.querySelectorAll('[data-hardware-preship-field-error]').forEach((node) => {
-            node.textContent = '';
-        });
-        const submitError = workspace.querySelector('[data-hardware-preship-cancel-submit-error]');
-        if (submitError) {
-            submitError.textContent = '';
-            toggle(submitError, false);
-        }
+        clearFieldErrors();
+        setSubmitError('');
         toggle(form, false);
         toggle(workspace.querySelector('[data-hardware-preship-cancel-breakdown]'), false);
         toggle(workspace.querySelector('[data-hardware-preship-cancel-split-tender]'), false);
@@ -93,16 +184,33 @@ export const initHardwareDashboardPreshipCancel = (root = document) => {
         if (submitButton) {
             submitButton.disabled = true;
         }
+        submitInFlight = false;
     };
 
     const closeDialog = () => {
         resetDialog();
-        toggle(dialog, false);
+        modalApi.hide();
     };
 
     const openDialog = () => {
-        toggle(dialog, true);
+        lastFocusedElement = document.activeElement instanceof HTMLElement
+            ? document.activeElement
+            : cancelButton;
+        modalApi.show();
     };
+
+    dialog.addEventListener('shown.bs.modal', () => {
+        const reason = form.querySelector('[data-hardware-preship-cancellation-reason]');
+        if (reason instanceof HTMLElement) {
+            reason.focus();
+        }
+    });
+
+    dialog.addEventListener('hidden.bs.modal', () => {
+        if (lastFocusedElement instanceof HTMLElement) {
+            lastFocusedElement.focus();
+        }
+    });
 
     const applyPreflightToDialog = (payload) => {
         activePreflight = payload;
@@ -154,6 +262,47 @@ export const initHardwareDashboardPreshipCancel = (root = document) => {
         }
     };
 
+    const applyValidationErrors = (errors) => {
+        if (!errors) {
+            return;
+        }
+
+        Object.entries(errors).forEach(([field, messages]) => {
+            const message = Array.isArray(messages) ? messages[0] : String(messages);
+            if (FIELD_NAMES.includes(field)) {
+                setFieldError(field, message);
+            }
+        });
+
+        const topLevel = firstErrorMessage(errors);
+        if (topLevel && !['cancellation_reason', 'refund_preference', 'operator_notes'].some((f) => errors[f])) {
+            setSubmitError(topLevel);
+        }
+    };
+
+    const messageForFailedResponse = (response, data) => {
+        const requestId = requestIdFromResponse(response);
+        const requestSuffix = requestId ? ` Reference: ${requestId}.` : '';
+
+        if (response.status === 401) {
+            return 'Your session has expired. Sign in again and retry.';
+        }
+        if (response.status === 403) {
+            return data?.message ?? 'You are not authorized to submit this cancellation.';
+        }
+        if (response.status === 419) {
+            return 'Your session or security token expired. Refresh the page and try again.';
+        }
+        if (response.status === 422) {
+            return data?.message ?? firstErrorMessage(data?.errors) ?? 'Fix the highlighted fields and try again.';
+        }
+        if (response.status >= 500) {
+            return `Cancellation could not be submitted due to a server error.${requestSuffix}`;
+        }
+
+        return data?.message ?? 'Cancellation could not be submitted.';
+    };
+
     const runPreflight = async (supportOrderId) => {
         preflightAbort?.abort();
         preflightAbort = new AbortController();
@@ -194,7 +343,7 @@ export const initHardwareDashboardPreshipCancel = (root = document) => {
                 return;
             }
 
-            const payload = await response.json();
+            const payload = await parseJsonBody(response) ?? {};
 
             if (!payload.eligible || !payload.can_submit) {
                 const code = payload.eligibility_code ?? 'ineligible';
@@ -273,12 +422,21 @@ export const initHardwareDashboardPreshipCancel = (root = document) => {
 
             if (!response.ok) {
                 const ineligible = workspace.querySelector('[data-hardware-preship-cancel-ineligible]');
+                ineligible.textContent = response.status === 403
+                    ? 'You are not authorized to load cancellation details for this order.'
+                    : 'Unable to load cancellation details. Close and try again.';
+                toggle(ineligible, true);
+                return;
+            }
+
+            const payload = await parseJsonBody(response);
+            if (!payload) {
+                const ineligible = workspace.querySelector('[data-hardware-preship-cancel-ineligible]');
                 ineligible.textContent = 'Unable to load cancellation details. Close and try again.';
                 toggle(ineligible, true);
                 return;
             }
 
-            const payload = await response.json();
             applyPreflightToDialog(payload);
         } catch {
             const ineligible = workspace.querySelector('[data-hardware-preship-cancel-ineligible]');
@@ -288,15 +446,23 @@ export const initHardwareDashboardPreshipCancel = (root = document) => {
     });
 
     closeButtons.forEach((button) => {
-        button.addEventListener('click', closeDialog);
+        button.addEventListener('click', () => {
+            if (!submitInFlight) {
+                resetDialog();
+            }
+        });
     });
 
     form.addEventListener('submit', async (event) => {
         event.preventDefault();
 
-        if (!activePreflight?.store_url || !activePreflight?.can_submit) {
+        if (!activePreflight?.store_url || !activePreflight?.can_submit || submitInFlight) {
             return;
         }
+
+        submitInFlight = true;
+        clearFieldErrors();
+        setSubmitError('');
 
         if (submitButton) {
             submitButton.disabled = true;
@@ -311,12 +477,8 @@ export const initHardwareDashboardPreshipCancel = (root = document) => {
             idempotency_key: String(formData.get('idempotency_key') ?? ''),
         };
 
-        const submitError = workspace.querySelector('[data-hardware-preship-cancel-submit-error]');
-        submitError.textContent = '';
-        toggle(submitError, false);
-
         try {
-            const response = await fetch(activePreflight.store_url, {
+            const response = await workspaceFetch(activePreflight.store_url, {
                 method: 'POST',
                 headers: {
                     Accept: 'application/json',
@@ -327,22 +489,14 @@ export const initHardwareDashboardPreshipCancel = (root = document) => {
                 body: JSON.stringify(body),
             });
 
-            const data = await response.json().catch(() => ({}));
+            const data = await parseJsonBody(response);
 
             if (!response.ok) {
-                const errors = data.errors ?? {};
-                Object.entries(errors).forEach(([field, messages]) => {
-                    const node = workspace.querySelector(`[data-hardware-preship-field-error="${field}"]`);
-                    if (node) {
-                        node.textContent = Array.isArray(messages) ? messages[0] : String(messages);
-                    }
-                });
-
-                submitError.textContent = data.message
-                    ?? Object.values(errors).flat()?.[0]
-                    ?? 'Cancellation could not be submitted.';
-                toggle(submitError, true);
-
+                if (response.status === 422 && data?.errors) {
+                    applyValidationErrors(data.errors);
+                }
+                setSubmitError(messageForFailedResponse(response, data));
+                submitInFlight = false;
                 if (submitButton) {
                     submitButton.disabled = false;
                 }
@@ -350,7 +504,7 @@ export const initHardwareDashboardPreshipCancel = (root = document) => {
             }
 
             closeDialog();
-            showAppToast(data.message ?? 'Order cancellation submitted.');
+            showAppToast(data?.message ?? 'Order cancellation submitted.');
 
             workspace.querySelectorAll('[data-hardware-select]:checked').forEach((input) => {
                 input.checked = false;
@@ -363,10 +517,15 @@ export const initHardwareDashboardPreshipCancel = (root = document) => {
 
             workspace.dispatchEvent(new CustomEvent('hardware:selection-changed'));
             workspace.dispatchEvent(new CustomEvent('hardware:request-reload', { bubbles: true }));
-        } catch {
-            submitError.textContent = 'Cancellation could not be submitted.';
-            toggle(submitError, true);
-
+        } catch (error) {
+            if (error instanceof WorkspaceRequestError && error.kind === 'session') {
+                setSubmitError(error.message);
+            } else if (error instanceof WorkspaceRequestError && error.kind === 'network') {
+                setSubmitError(error.message);
+            } else {
+                setSubmitError('Cancellation could not be submitted. Check your connection and try again.');
+            }
+            submitInFlight = false;
             if (submitButton) {
                 submitButton.disabled = false;
             }

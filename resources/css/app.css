@@ -22004,6 +22004,30 @@ body.wm360-drawer-open {
 }
 
 /* -------------------------------------------------------------------------- */
+/* Hardware Dashboard pre-shipment cancel modal                               */
+/* -------------------------------------------------------------------------- */
+
+.hardware-preship-cancel-modal__dialog {
+    width: min(32rem, calc(100vw - 2rem));
+    max-width: min(32rem, calc(100vw - 2rem));
+    margin: 1rem auto;
+}
+
+.hardware-preship-cancel-modal .modal-content {
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    box-shadow: 0 1.25rem 2.5rem rgba(15, 23, 42, 0.18);
+}
+
+.hardware-preship-cancel-modal__body {
+    max-height: min(85vh, 720px);
+    overflow-y: auto;
+}
+
+.hardware-preship-cancel-modal.modal {
+    --bs-modal-zindex: 1090;
+}
+
+/* -------------------------------------------------------------------------- */
 /* To-Do contextual modal (Bootstrap modal pattern)                           */
 /* -------------------------------------------------------------------------- */
 

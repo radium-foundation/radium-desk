@@ -8,6 +8,7 @@ use App\Enums\IncidentStatus;
 use App\Enums\PreShipmentCancellationStatus;
 use App\Enums\PreShipmentEligibilityFailureCode;
 use App\Enums\StatutoryInvoiceChannel;
+use App\Http\Requests\StorePreShipmentCancellationRequest;
 use App\Jobs\PreShipmentCancellation\ClosePreShipmentCancellationIncidentJob;
 use App\Models\CommerceOrder;
 use App\Models\HardwareFulfilment;
@@ -163,6 +164,10 @@ class PreShipmentCancellationHardwareDashboardModalTest extends TestCase
 
         $this->assertStringContainsString('data-hardware-preship-cancel-enabled="1"', $html);
         $this->assertStringContainsString('data-hardware-cancel-order', $html);
+        $this->assertStringContainsString('id="hardwarePreshipCancelModal"', $html);
+        $this->assertStringContainsString('class="modal fade hardware-preship-cancel-modal"', $html);
+        $this->assertStringContainsString('modal-dialog-centered', $html);
+        $this->assertStringNotContainsString('dashboard-hardware-preship-cancel card', $html);
     }
 
     public function test_preflight_and_json_store_for_eligible_order(): void
@@ -315,9 +320,57 @@ class PreShipmentCancellationHardwareDashboardModalTest extends TestCase
 
         $validator = Validator::make([
             'cancellation_reason' => 'short',
-        ], (new \App\Http\Requests\StorePreShipmentCancellationRequest)->rules());
+        ], (new StorePreShipmentCancellationRequest)->rules());
 
         $this->assertTrue($validator->fails());
         $this->assertSame(0, PreShipmentCancellationRequest::query()->where('order_id', $order->id)->count());
+    }
+
+    public function test_json_store_returns_422_with_validation_errors(): void
+    {
+        config(['pre_shipment_cancellation.enabled' => true]);
+        [$actor, $order] = array_slice($this->paidHardwareFixtures(), 0, 2);
+
+        $response = $this->actingAs($actor)
+            ->postJson(route('orders.pre-shipment-cancellations.store', $order), [
+                'cancellation_reason' => 'short',
+                'idempotency_key' => 'psc-hw-422-'.$order->id,
+            ]);
+
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors(['cancellation_reason']);
+        $this->assertSame(0, PreShipmentCancellationRequest::query()->count());
+    }
+
+    public function test_json_store_returns_403_without_submit_permission(): void
+    {
+        config(['pre_shipment_cancellation.enabled' => true]);
+        [, $order] = array_slice($this->paidHardwareFixtures(), 0, 2);
+        $viewer = User::factory()->create(['is_active' => true]);
+        $viewer->assignRole(RolePermissionSeeder::ROLE_EMPLOYEE);
+
+        $this->actingAs($viewer)
+            ->postJson(route('orders.pre-shipment-cancellations.store', $order), [
+                'cancellation_reason' => 'Should be forbidden without permission.',
+                'idempotency_key' => 'psc-hw-403-'.$order->id,
+            ])
+            ->assertForbidden();
+    }
+
+    public function test_json_store_eligibility_rejection_returns_422_with_order_id_error(): void
+    {
+        config(['pre_shipment_cancellation.enabled' => true]);
+        [$actor, $order, , $fulfilment] = $this->paidHardwareFixtures(hfState: HardwareFulfilmentState::ReadyForFulfilment);
+        $fulfilment->forceFill(['state' => HardwareFulfilmentState::SerialsAllocated])->save();
+
+        $this->actingAs($actor)
+            ->postJson(route('orders.pre-shipment-cancellations.store', $order), [
+                'cancellation_reason' => 'Eligibility should fail at submit time.',
+                'idempotency_key' => 'psc-hw-elig-http-'.$order->id,
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['order_id']);
+
+        $this->assertSame(0, PreShipmentCancellationRequest::query()->count());
     }
 }
