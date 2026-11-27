@@ -376,6 +376,8 @@ Route::middleware(['auth', 'active'])->group(function () {
             ->name('pre-shipment-cancellations.retry-incident');
         Route::get('orders/{order}/pre-shipment-cancellations/create', [PreShipmentCancellationRequestController::class, 'create'])
             ->name('orders.pre-shipment-cancellations.create');
+        Route::get('orders/{order}/pre-shipment-cancellations/preflight', [PreShipmentCancellationRequestController::class, 'preflight'])
+            ->name('orders.pre-shipment-cancellations.preflight');
         Route::post('orders/{order}/pre-shipment-cancellations', [PreShipmentCancellationRequestController::class, 'store'])
             ->name('orders.pre-shipment-cancellations.store');
         Route::get('pre-shipment-cancellations/{pre_shipment_cancellation}', [PreShipmentCancellationRequestController::class, 'show'])

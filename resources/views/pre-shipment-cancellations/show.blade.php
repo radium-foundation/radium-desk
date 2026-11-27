@@ -58,6 +58,8 @@
             </div>
         </div>
 
+        @include('pre-shipment-cancellations.partials.operator-metadata', ['case' => $case])
+
         @if ($canRetryIncident && $case->service_case_sync_status?->value !== 'succeeded')
             <form method="POST" action="{{ route('pre-shipment-cancellations.retry-incident', $case) }}" class="mt-3">
                 @csrf

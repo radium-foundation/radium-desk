@@ -15,6 +15,7 @@ import { initHardwareDashboardKpiStrip } from '../hardware-dashboard-kpi';
 import { initHardwareStuckSummaryAsync } from '../hardware-stuck-summary-async';
 import { initHardwareDashboardBulkDownload } from '../hardware-dashboard-bulk-download';
 import { initHardwareDashboardSelection } from '../hardware-dashboard-selection';
+import { initHardwareDashboardPreshipCancel } from '../hardware-dashboard-preship-cancel';
 import { initServiceCasePaginationState } from '../dashboard-service-case-state';
 import { createServiceCaseRowReplacer } from '../service-case-row';
 import { initTooltips } from '../tooltips';
@@ -538,6 +539,7 @@ export const bootDashboard = () => {
     initHardwareDashboardAsync(pageRoot);
     initHardwareStuckSummaryAsync(pageRoot);
     initHardwareDashboardSelection(pageRoot);
+    initHardwareDashboardPreshipCancel(pageRoot);
     initHardwareDashboardBulkDownload(pageRoot);
 
     initDashboardLoadMore({
