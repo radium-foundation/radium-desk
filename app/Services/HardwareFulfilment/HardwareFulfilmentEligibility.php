@@ -21,11 +21,13 @@ final class HardwareFulfilmentEligibility
     public const SOURCE_PREFIX = 'RDE';
 
     /** @var list<string> */
-    public const HARDWARE_SOURCE_PREFIXES = ['RDE', 'RBP'];
+    public const HARDWARE_SOURCE_PREFIXES = ['RDE', 'RBP', 'RNP'];
 
     public const RIN_SOURCE_PREFIX = 'RIN';
 
     public const RDP_SOURCE_PREFIX = 'RDP';
+
+    public const RNP_SOURCE_PREFIX = 'RNP';
 
     public const CUTOFF_IST = '2026-09-05 00:00:00';
 
@@ -81,6 +83,14 @@ final class HardwareFulfilmentEligibility
         }
 
         if (self::isRdServiceInHardwareRequest($request)) {
+            return self::hasPhysicalLine($request);
+        }
+
+        if (self::isRdServiceNetHardwareRequest($request)) {
+            if (strtolower(trim($request->paymentStatus)) !== 'paid') {
+                return false;
+            }
+
             return self::hasPhysicalLine($request);
         }
 
@@ -176,7 +186,37 @@ final class HardwareFulfilmentEligibility
     public static function looksLikeHardwareSourceId(string $sourceId): bool
     {
         return self::isRadiumBoxHardwareSourceId($sourceId)
-            || self::looksLikeRdServiceInHardwareSourceId($sourceId);
+            || self::looksLikeRdServiceInHardwareSourceId($sourceId)
+            || self::looksLikeRdServiceNetHardwareSourceId($sourceId);
+    }
+
+    public static function isRdServiceNetHardwareRequest(ChannelOrderIngestRequest $request): bool
+    {
+        if ($request->channel !== StatutoryInvoiceChannel::RdServiceNet) {
+            return false;
+        }
+
+        if (! self::looksLikeRdServiceNetHardwareSourceId($request->sourceId)) {
+            return false;
+        }
+
+        $type = strtolower(trim((string) ($request->metadata['source_order_type'] ?? '')));
+
+        return $type === 'hardware_direct_buy';
+    }
+
+    public static function looksLikeRdServiceNetHardwareSourceId(string $sourceId): bool
+    {
+        $parsed = BusinessOrderId::parse($sourceId);
+        if ($parsed !== null) {
+            return $parsed['hardware'] === true
+                && $parsed['owner'] === 'rdservice.net'
+                && $parsed['prefix'] === self::RNP_SOURCE_PREFIX;
+        }
+
+        $normalized = strtoupper(trim($sourceId));
+
+        return (bool) preg_match('/^RNP\d+$/i', $normalized);
     }
 
     public static function isRadiumBoxHardwareSourceId(string $sourceId): bool

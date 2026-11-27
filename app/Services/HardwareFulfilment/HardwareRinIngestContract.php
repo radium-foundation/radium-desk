@@ -17,6 +17,13 @@ final class HardwareRinIngestContract
 {
     public function assert(ChannelOrderIngestRequest $request): void
     {
+        if (HardwareFulfilmentEligibility::looksLikeRdServiceNetHardwareSourceId($request->sourceId)
+            && $request->channel !== StatutoryInvoiceChannel::RdServiceNet) {
+            throw ValidationException::withMessages([
+                'channel' => 'rdservice.net hardware must ingest as channel rdservice_net.',
+            ]);
+        }
+
         if (HardwareFulfilmentEligibility::looksLikeRdServiceInHardwareSourceId($request->sourceId)
             && $request->channel !== StatutoryInvoiceChannel::RdServiceIn) {
             throw ValidationException::withMessages([

@@ -15,6 +15,7 @@ use App\Services\ChannelIngest\Data\ChannelOrderIngestRequest;
 use App\Services\HardwareFulfilment\HardwareFulfilmentFoundationService;
 use App\Services\HardwareFulfilment\HardwareHandoffTenderContract;
 use App\Services\HardwareFulfilment\HardwareRinIngestContract;
+use App\Services\HardwareFulfilment\HardwareRnpIngestContract;
 use App\Services\StatutoryInvoice\CommerceOrderBuyerGstVerificationService;
 use App\Services\StatutoryInvoice\ServiceSacResolver;
 use App\Services\StatutoryInvoice\StatutoryInvoiceAccountingPolicy;
@@ -40,6 +41,7 @@ class ChannelIngestService
         private readonly ChannelIngestBillableLinePolicy $billableLines,
         private readonly HardwareHandoffTenderContract $tenders,
         private readonly HardwareRinIngestContract $rinHardware,
+        private readonly HardwareRnpIngestContract $rnpHardware,
         private readonly CommerceOrderBuyerGstVerificationService $buyerGstVerification,
     ) {}
 
@@ -59,6 +61,7 @@ class ChannelIngestService
             $request = $this->validator->validate($payload, $authenticatedChannel);
             $this->tenders->assertExistingCashfree($request);
             $this->rinHardware->assert($request);
+            $this->rnpHardware->assert($request);
         } catch (ValidationException $exception) {
             $this->recordAttempt(
                 outcome: ChannelIngestOutcome::Rejected,
