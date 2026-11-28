@@ -1,5 +1,14 @@
 # Changelog
 
+## 4.1.134 — 2026-11-28 — PSC refund automation and commercial-state hardening (P-28-21 / PR #450)
+
+- **PR #450:** Permanent PSC post-commit refund auto-link, desk-first wallet auto-credit when both runtime flags are enabled, PSC `already_refunded_amount` reconciliation, Service Case commercial resolver hardening (`approved` no longer shows completed), and PSC operator refund status UI.
+- **Migrations:** `DEPLOY_RUN_MIGRATIONS=0`.
+- **Seeder:** `DEPLOY_RUN_ROLE_PERMISSION_SEED=0`.
+- **Protected configuration:** preserve all ten production flags as on v4.1.133.
+- Rollback target: v4.1.133 / `608efc3fba1105940c2ce88b9114bdfcc54f4efa`.
+- Merge commit (PR #450): `dfc35c1757496cf093f586372f00852b6bfa9271`.
+
 ## 4.1.133 — 2026-11-28 — BluPrints SAMPANN Regular-2600 radiumbox_com SKU map config (P-28-16 / PR #448)
 
 - **Hardware SKU map (PR #448 / P-28-16):** Add `hardware_fulfilment.radiumbox_com.sku_maps` row for **`model_id` 1507** (BluPrints SAMPANN Regular-2600): **`PBPSAMREG2`** → Desk **`RBBPSR2600`**; `channel_sku` **`1507`**. Production `channel_sku_maps` insert requires Owner-approved `desk:seed-radiumbox-hardware-sku-maps --apply` after deploy (P-28-17).
