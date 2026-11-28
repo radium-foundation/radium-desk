@@ -1,5 +1,15 @@
 # Changelog
 
+## 4.1.132 — 2026-11-28 — RNP rdservice.net hardware fulfilment + ingest hash (P-28-01 / P-28-05 / PR #447)
+
+- **Hardware fulfilment (PR #447 / P-28-01):** Enable **`RNP*`** `rdservice.net` channel hardware fulfilment eligibility via `HardwareRnpIngestContract`; legacy Cashfree **`orders`** row correlation for payment linkage where applicable.
+- **Channel ingest (PR #447 / P-28-05):** `ChannelIngestPayloadHasher::hash()` routes `rdservice.net` hardware requests to **`hardwareCanonical()`** so RNP hardware identity fields (`model_id`, `catalog_sku`, `shipping_line_kind`, line amounts) participate in ingest idempotency.
+- **Migrations:** `DEPLOY_RUN_MIGRATIONS=0` (no new schema in this release).
+- **Seeder:** `DEPLOY_RUN_ROLE_PERMISSION_SEED=0`.
+- **Protected configuration:** preserve all ten production flags as on v4.1.131.
+- Rollback target: v4.1.131 / `376543c6a5c1b1736fb13f159a1814411b7a1833`.
+- Merge commit (PR #447): `0c4da609cbaf4abeb65d0fc5ef7236da3ac57b37`.
+
 ## 4.1.131 — 2026-11-27 — Pre-shipment `blocker_reason` storage fix (P-27-08 / PR #446)
 
 - **Pre-shipment cancellation (PR #446 / P-27-08):** Widen `pre_shipment_cancellation_requests.blocker_reason` from **varchar(64)** to **TEXT** so `psc_meta:` JSON (wallet/OPM preference + operator notes) persists without MariaDB **22001** truncation (production incident **RBP1564**).
