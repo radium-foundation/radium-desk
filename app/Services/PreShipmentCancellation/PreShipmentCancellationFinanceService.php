@@ -12,13 +12,14 @@ final class PreShipmentCancellationFinanceService
 {
     public function __construct(
         private readonly PreShipmentCancellationFeature $feature,
+        private readonly PreShipmentCancellationRefundAutomationService $refundAutomation,
     ) {}
 
     public function approve(User $actor, PreShipmentCancellationRequest $case): PreShipmentCancellationRequest
     {
         $this->feature->assertEnabled();
 
-        return DB::transaction(function () use ($actor, $case): PreShipmentCancellationRequest {
+        $approved = DB::transaction(function () use ($actor, $case): PreShipmentCancellationRequest {
             $locked = PreShipmentCancellationRequest::query()
                 ->whereKey($case->id)
                 ->lockForUpdate()
@@ -41,6 +42,10 @@ final class PreShipmentCancellationFinanceService
 
             return $locked->fresh() ?? $locked;
         });
+
+        $this->refundAutomation->dispatchAfterCommit($approved, $actor->id);
+
+        return $approved;
     }
 
     public function reject(User $actor, PreShipmentCancellationRequest $case, string $reason): PreShipmentCancellationRequest

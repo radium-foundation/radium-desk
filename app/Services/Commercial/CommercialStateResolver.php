@@ -119,7 +119,6 @@ class CommercialStateResolver
         $completedRefund = $this->latestMatchingRefund($refunds, [
             RefundStatus::Completed,
             RefundStatus::Closed,
-            RefundStatus::Approved,
             RefundStatus::Revoked,
         ]);
 
@@ -138,6 +137,7 @@ class CommercialStateResolver
         $initiatedRefund = $this->latestMatchingRefund($refunds, [
             RefundStatus::Pending,
             RefundStatus::PendingExecution,
+            RefundStatus::Approved,
         ]);
 
         if ($initiatedRefund instanceof RefundRequest) {
