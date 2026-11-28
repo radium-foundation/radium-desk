@@ -12,7 +12,7 @@ final class BusinessOrderId
     private const RULES = [
         ['prefix' => 'RBP', 'kind' => 'product', 'owner' => 'radiumbox.com', 'hardware' => true],
         ['prefix' => 'RDP', 'kind' => 'product', 'owner' => 'rdservice.in', 'hardware' => true],
-        ['prefix' => 'RNP', 'kind' => 'product', 'owner' => 'rdservice.net', 'hardware' => false],
+        ['prefix' => 'RNP', 'kind' => 'product', 'owner' => 'rdservice.net', 'hardware' => true],
         ['prefix' => 'RSP', 'kind' => 'product', 'owner' => 'radiumsign.com', 'hardware' => false],
         ['prefix' => 'RBX', 'kind' => 'gateway', 'owner' => 'radiumbox.com', 'hardware' => false],
         ['prefix' => 'RDE', 'kind' => 'product', 'owner' => 'radiumbox.com', 'hardware' => true],

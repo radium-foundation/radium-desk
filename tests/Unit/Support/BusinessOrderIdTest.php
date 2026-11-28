@@ -61,7 +61,8 @@ class BusinessOrderIdTest extends TestCase
         $this->assertTrue(BusinessOrderId::isHardwareByPrefix('RIN1'));
         $this->assertTrue(BusinessOrderId::isHardwareByPrefix('RBP1'));
         $this->assertTrue(BusinessOrderId::isHardwareByPrefix('RDP1'));
-        $this->assertFalse(BusinessOrderId::isHardwareByPrefix('RNP1'));
+        $this->assertTrue(BusinessOrderId::isHardwareByPrefix('RNP1'));
+        $this->assertTrue(BusinessOrderId::isHardwareByPrefix('RNP30'));
         $this->assertFalse(BusinessOrderId::isHardwareByPrefix('RSP1'));
         $this->assertFalse(BusinessOrderId::isHardwareByPrefix('RB1'));
         $this->assertFalse(BusinessOrderId::isHardwareByPrefix('RD1'));
@@ -69,6 +70,18 @@ class BusinessOrderIdTest extends TestCase
         $this->assertFalse(BusinessOrderId::isHardwareByPrefix('RS1'));
         $this->assertFalse(BusinessOrderId::isHardwareByPrefix('RA1'));
         $this->assertFalse(BusinessOrderId::isHardwareByPrefix('RDS1'));
+    }
+
+    public function test_rnp_invalid_identifiers_do_not_parse_as_hardware(): void
+    {
+        $this->assertNull(BusinessOrderId::parse('RNP-30'));
+        $bareRnp = BusinessOrderId::parse('RNP');
+        $this->assertSame('RN', $bareRnp['prefix'] ?? null);
+        $this->assertFalse(BusinessOrderId::isHardwareByPrefix('RNP'));
+        $this->assertSame('rdservice.net', BusinessOrderId::owner('RN1'));
+        $this->assertSame('rdservice.net', BusinessOrderId::owner('RA1'));
+        $this->assertFalse(BusinessOrderId::isHardwareByPrefix('RN1'));
+        $this->assertFalse(BusinessOrderId::isHardwareByPrefix('RA1'));
     }
 
     public function test_rd_service_orders_are_classified_for_rdservice_in_publish_selling_tolerance(): void

@@ -12,7 +12,7 @@ use App\Services\HardwareFulfilment\HardwareHandoffTenderContract;
  * Canonical payload identity for channel ingest retries.
  *
  * Service channels keep the historical hash so existing service retries stay 200.
- * radiumbox_com and rdservice.in RIN hardware_direct_buy use the hardware hash.
+ * radiumbox_com, rdservice.net RNP hardware_direct_buy, and rdservice.in RIN hardware_direct_buy use the hardware hash.
  * rdservice.in RDP hardware_direct_buy ingested before RDP used the hardware hash
  * keep the legacy service hash on replay via matchesStored() only.
  */
@@ -49,6 +49,7 @@ class ChannelIngestPayloadHasher
     {
         $payload = $request->channel === StatutoryInvoiceChannel::RadiumBoxCom
             || HardwareFulfilmentEligibility::isRinHardwareRequest($request)
+            || HardwareFulfilmentEligibility::isRdServiceNetHardwareRequest($request)
             ? $this->hardwareCanonical($request)
             : $this->serviceCanonical($request);
 
