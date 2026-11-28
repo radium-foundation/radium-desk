@@ -1,5 +1,14 @@
 # Changelog
 
+## 4.1.133 — 2026-11-28 — BluPrints SAMPANN Regular-2600 radiumbox_com SKU map config (P-28-16 / PR #448)
+
+- **Hardware SKU map (PR #448 / P-28-16):** Add `hardware_fulfilment.radiumbox_com.sku_maps` row for **`model_id` 1507** (BluPrints SAMPANN Regular-2600): **`PBPSAMREG2`** → Desk **`RBBPSR2600`**; `channel_sku` **`1507`**. Production `channel_sku_maps` insert requires Owner-approved `desk:seed-radiumbox-hardware-sku-maps --apply` after deploy (P-28-17).
+- **Migrations:** `DEPLOY_RUN_MIGRATIONS=0`.
+- **Seeder:** `DEPLOY_RUN_ROLE_PERMISSION_SEED=0`.
+- **Protected configuration:** preserve all ten production flags as on v4.1.132.
+- Rollback target: v4.1.132 / `398d2f2600dc26ff2d3a942ab8c0ebe7dad6d6e4`.
+- Merge commit (PR #448): `d188796009dc7d9668831fe8507718ff47583c2b`.
+
 ## 4.1.132 — 2026-11-28 — RNP rdservice.net hardware fulfilment + ingest hash (P-28-01 / P-28-05 / PR #447)
 
 - **Hardware fulfilment (PR #447 / P-28-01):** Enable **`RNP*`** `rdservice.net` channel hardware fulfilment eligibility via `HardwareRnpIngestContract`; legacy Cashfree **`orders`** row correlation for payment linkage where applicable.
