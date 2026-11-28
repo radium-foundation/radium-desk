@@ -114,6 +114,13 @@ return [
                 'notes' => 'BluPrints SAMPANN Regular-1200 (Owner P-30-39 / RBP1407)',
             ],
             [
+                'model_id' => 1507,
+                'channel_sku' => '1507',
+                'catalog_sku' => 'PBPSAMREG2',
+                'desk_sku' => 'RBBPSR2600',
+                'notes' => 'BluPrints SAMPANN Regular-2600 (Owner P-28-16 / RBP2733)',
+            ],
+            [
                 'model_id' => 1622,
                 'channel_sku' => '1622',
                 'catalog_sku' => 'RBPELIMGPS',

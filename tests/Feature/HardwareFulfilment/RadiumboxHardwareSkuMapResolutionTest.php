@@ -3,6 +3,7 @@
 namespace Tests\Feature\HardwareFulfilment;
 
 use App\Enums\CommerceOrderStatus;
+use App\Enums\HardwareAwaitingFulfilmentReason;
 use App\Enums\HardwareFulfilmentState;
 use App\Enums\StatutoryInvoiceChannel;
 use App\Models\CommerceOrder;
@@ -10,6 +11,7 @@ use App\Models\CommerceOrderItem;
 use App\Models\HardwareFulfilment;
 use App\Models\Order;
 use App\Models\User;
+use App\Services\HardwareFulfilment\Data\HardwareAwaitingFulfilmentClassifier;
 use App\Services\HardwareFulfilment\Data\HardwareFulfilmentOperationalClassifier;
 use App\Services\HardwareFulfilment\Data\HardwareShipmentReadiness;
 use App\Services\HardwareFulfilment\HardwareFulfilmentEligibility;
@@ -93,6 +95,41 @@ class RadiumboxHardwareSkuMapResolutionTest extends TestCase
         $this->assertTrue($product->is_serialized);
 
         $row = $this->classifyReadyFulfilment('RBPVRD', 1616, $product->is_serialized);
+
+        $this->assertSame('Allocate Serial', $row->nextAction);
+        $this->assertNotSame('Product mapping required', $row->operatorStatus());
+    }
+
+    public function test_rbp2733_resolves_model_1507_to_rbbpsr2600_without_product_mapping_blocker(): void
+    {
+        $product = app(HardwareSkuMapService::class)->requireProduct(
+            StatutoryInvoiceChannel::RadiumBoxCom,
+            1507,
+        );
+
+        $this->assertSame('RBBPSR2600', $product->sku);
+        $this->assertTrue($product->is_serialized);
+
+        $fulfilment = $this->readyFulfilment('RBP2733', 1507, 1);
+        $commerce = $fulfilment->commerceOrder->fresh('items');
+        $support = $fulfilment->supportOrder;
+
+        $this->assertNotSame(
+            HardwareAwaitingFulfilmentReason::ProductMappingRequired,
+            HardwareAwaitingFulfilmentClassifier::reason($support, $commerce),
+        );
+
+        $ready = $this->readiness([
+            'alreadyCreated' => false,
+            'serials' => [],
+            'invoice' => null,
+            'quantity' => 1,
+            'stockCommitted' => false,
+            'serialized' => true,
+        ]);
+
+        $row = app(HardwareFulfilmentOperationalClassifier::class)
+            ->fromFulfilment($fulfilment->fresh(['commerceOrder.items', 'supportOrder']), $ready);
 
         $this->assertSame('Allocate Serial', $row->nextAction);
         $this->assertNotSame('Product mapping required', $row->operatorStatus());
