@@ -30,6 +30,7 @@ final class PreShipmentCancellationSubmitService
         private readonly HardwareFulfilmentWorkflowService $fulfilmentWorkflow,
         private readonly PreShipmentCancellationIncidentService $incidentService,
         private readonly OrderStatutoryInvoiceResolver $invoiceResolver,
+        private readonly PreShipmentCancellationRefundAutomationService $refundAutomation,
     ) {}
 
     /**
@@ -185,6 +186,7 @@ final class PreShipmentCancellationSubmitService
             });
 
             $this->dispatchIncidentRetryIfNeeded($case, $actor->id);
+            $this->refundAutomation->dispatchAfterCommit($case, $actor->id);
 
             return $case;
         } catch (UniqueConstraintViolationException) {

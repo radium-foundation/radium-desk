@@ -110,6 +110,8 @@ class PreShipmentCancellationFinanceDisplayTest extends TestCase
         $this->actingAs($this->financeUser())
             ->get(route('pre-shipment-cancellations.show', $case))
             ->assertOk()
+            ->assertSee('Refund status', false)
+            ->assertSee('Unlinked / Action Required', false)
             ->assertSee('Wallet credit', false)
             ->assertSee('Call confirmed with customer.', false)
             ->assertSee('Cashfree and Wallet amounts require manual Finance review', false)

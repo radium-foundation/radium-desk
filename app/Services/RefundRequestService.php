@@ -353,7 +353,9 @@ class RefundRequestService
         User $user,
         array $data,
         Request $request,
+        array $options = [],
     ): RefundRequest {
+        $dispatchCompletionFollowUp = (bool) ($options['dispatch_completion_follow_up'] ?? true);
         $existing = $refund->fresh(['requester']);
 
         if ($existing !== null && $existing->status === RefundStatus::Closed) {
@@ -363,7 +365,9 @@ class RefundRequestService
         }
 
         if ($existing !== null && $existing->status === RefundStatus::Completed) {
-            $this->dispatchCompletionFollowUp($existing, $user);
+            if ($dispatchCompletionFollowUp) {
+                $this->dispatchCompletionFollowUp($existing, $user);
+            }
 
             return $existing;
         }
@@ -451,7 +455,9 @@ class RefundRequestService
 
         // Case close, holds, and customer comms run after the HTTP response so payout
         // completion is not lost to PHP max_execution_time on heavy post-commit work.
-        $this->dispatchCompletionFollowUp($completed, $user);
+        if ($dispatchCompletionFollowUp) {
+            $this->dispatchCompletionFollowUp($completed, $user);
+        }
 
         return $completed->fresh(['requester']) ?? $completed;
     }
