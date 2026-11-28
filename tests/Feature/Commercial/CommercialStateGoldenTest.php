@@ -16,6 +16,7 @@ use App\Services\Commercial\CommercialStateResolver;
 use App\Services\CommunicationActions\CommunicationActionEligibilityService;
 use App\Services\CommunicationActions\CommunicationActionRegistry;
 use App\Services\Customer360Service;
+use App\Services\DashboardService;
 use App\Services\IncidentReferenceService;
 use App\Services\OrderTransactionService;
 use App\Services\ServiceCaseReopenService;
@@ -150,6 +151,18 @@ class CommercialStateGoldenTest extends TestCase
         $this->assertStringContainsString('c360-commercial-state--warning', $html);
     }
 
+    public function test_approved_only_shows_refund_initiated_not_completed(): void
+    {
+        [$agent, $incident, $order] = $this->createFixture();
+        $this->createRefund($order, $incident, $agent, RefundStatus::Approved);
+
+        $resolver = app(CommercialStateResolver::class);
+        $snapshot = $resolver->forIncident($incident->fresh());
+
+        $this->assertSame(CommercialState::RefundInitiated, $snapshot->state);
+        $this->assertSame('Refund Requested', $snapshot->headline);
+    }
+
     public function test_refund_completed_blocks_all_commercial_actions_and_shows_red_banner(): void
     {
         [$agent, $incident, $order] = $this->createFixture();
@@ -204,7 +217,7 @@ class CommercialStateGoldenTest extends TestCase
 
         $this->actingAs($agent);
 
-        $rowHtml = view('dashboard.partials.service-case-row', app(\App\Services\DashboardService::class)->serviceCaseRowViewData(
+        $rowHtml = view('dashboard.partials.service-case-row', app(DashboardService::class)->serviceCaseRowViewData(
             $incident->fresh(['order.transactionAssigner', 'order.refundRequests', 'refundRequests', 'creator', 'assignee']),
             $agent,
         ))->render();

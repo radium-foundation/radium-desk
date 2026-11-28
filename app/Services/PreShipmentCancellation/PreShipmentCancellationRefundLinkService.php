@@ -2,12 +2,14 @@
 
 namespace App\Services\PreShipmentCancellation;
 
+use App\Enums\CustomerPreferredRefundMethod;
 use App\Enums\PreShipmentCancellationStatus;
 use App\Models\PreShipmentCancellationRequest;
 use App\Models\RefundRequest;
 use App\Models\User;
 use App\Services\RefundRequestService;
 use App\Services\Refunds\HardwareOrderRefundCaseGate;
+use App\Support\PreShipmentCancellation\PreShipmentCancellationOperatorMetadata;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -57,13 +59,22 @@ final class PreShipmentCancellationRefundLinkService
             }
 
             $order = $locked->order ?? $locked->order()->firstOrFail();
+            $metadata = PreShipmentCancellationOperatorMetadata::decode($locked->blocker_reason);
+            $preferredMethod = match ($metadata['refund_preference'] ?? null) {
+                'wallet' => CustomerPreferredRefundMethod::Wallet->value,
+                'opm' => CustomerPreferredRefundMethod::Opm->value,
+                default => CustomerPreferredRefundMethod::Opm->value,
+            };
 
             $refund = $this->refundRequests->create($actor, [
                 'order_id' => $order->id,
+                'incident_id' => $locked->service_case_incident_id,
                 'reason' => 'Pre-shipment cancellation '.$locked->reference_no,
                 'remarks' => $locked->cancellation_reason,
                 'amount' => (float) $locked->requested_refund_amount,
                 'deduction_profile_key' => 'full_refund',
+                'customer_preferred_method' => $preferredMethod,
+                'communication_channels' => [],
                 'hardware_refund_gate_bypass' => HardwareOrderRefundCaseGate::BYPASS_PRE_SHIPMENT_CANCELLATION,
                 'pre_shipment_cancellation_request_id' => $locked->id,
             ], $httpRequest);
