@@ -114,6 +114,35 @@ class HardwareRnpIngestTest extends TestCase
         $this->assertSame(0, HardwareFulfilment::query()->count());
     }
 
+    public function test_rnp30_shaped_payload_uses_hardware_hash_duplicate_and_conflict(): void
+    {
+        $this->mapNetHardwareSku();
+        $payload = $this->rnpPayload('RNP30');
+        $this->signedPost($payload)->assertCreated();
+
+        $this->signedPost($payload)->assertOk()->assertJsonPath('duplicate', true);
+        $this->assertSame(1, CommerceOrder::query()->where('source_id', 'RNP30')->count());
+
+        ChannelSkuMap::query()->updateOrCreate(
+            [
+                'channel' => StatutoryInvoiceChannel::RdServiceNet,
+                'model_id' => 91002,
+            ],
+            [
+                'inventory_product_id' => InventoryProduct::query()->where('sku', 'RBMFS110L1')->value('id'),
+                'catalog_sku' => 'mantra-fingerprint-alt',
+                'channel_sku' => 'mantra-fingerprint-alt',
+            ],
+        );
+
+        $changedModel = $payload;
+        $changedModel['lines'][0]['model_id'] = 91002;
+        $changedModel['lines'][0]['catalog_sku'] = 'mantra-fingerprint-alt';
+        $this->signedPost($changedModel)->assertStatus(409);
+        $this->assertSame(1, CommerceOrder::query()->where('source_id', 'RNP30')->count());
+
+    }
+
     public function test_ingest_replay_is_idempotent(): void
     {
         $this->mapNetHardwareSku();

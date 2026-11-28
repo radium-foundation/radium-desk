@@ -100,6 +100,123 @@ class ChannelIngestPayloadHasherTest extends TestCase
         $this->assertArrayNotHasKey('tenders', $this->hasher->serviceCanonical($request));
     }
 
+    public function test_rnp_hardware_uses_hardware_hash_not_service_hash(): void
+    {
+        $payload = [
+            'channel' => StatutoryInvoiceChannel::RdServiceNet->value,
+            'source_type' => StatutoryInvoiceSourceType::CommerceOrder->value,
+            'source_id' => 'RNP30',
+            'source_order_id' => 'RNP30',
+            'payment_status' => 'paid',
+            'payment_provider' => 'cashfree',
+            'payment_reference' => '7048442580',
+            'payment_method' => 'upi',
+            'currency' => 'INR',
+            'customer' => ['name' => 'Buyer', 'phone' => '9000000030', 'email' => 'buyer@example.com'],
+            'seller_gstin' => '07AAICP1128M1Z9',
+            'place_of_supply_state' => 'Delhi',
+            'shipping_address' => [
+                'line1' => '1 Test Street',
+                'city' => 'New Delhi',
+                'state' => 'Delhi',
+                'pincode' => '110001',
+            ],
+            'billing_address' => [
+                'line1' => '1 Test Street',
+                'city' => 'New Delhi',
+                'state' => 'Delhi',
+                'pincode' => '110001',
+            ],
+            'ordered_at' => '2026-11-20T13:02:12+05:30',
+            'metadata' => [
+                'source' => 'rdservice.net',
+                'source_order_type' => 'hardware_direct_buy',
+                'source_product_id' => 'mantra-fingerprint',
+                'retry_count' => 1,
+            ],
+            'lines' => [[
+                'description' => 'Mantra MFS110 L1 RD Service',
+                'sku' => 'RBMFS110L1',
+                'catalog_sku' => 'mantra-fingerprint',
+                'qty' => 1,
+                'unit_price' => 2735,
+                'hsn_sac' => '84716050',
+                'gst_percentage' => 18,
+                'taxable_value' => 2317.8,
+                'tax_total' => 417.2,
+                'line_total' => 2735,
+                'shipping_line_kind' => 'physical_merchandise',
+                'requires_shipping' => true,
+                'model_id' => 91001,
+            ]],
+        ];
+        $first = $this->validator->validate($payload, StatutoryInvoiceChannel::RdServiceNet);
+        $payload['metadata']['retry_count'] = 9;
+        $payload['paid_at'] = '2026-11-21T12:00:00+05:30';
+        $second = $this->validator->validate($payload, StatutoryInvoiceChannel::RdServiceNet);
+
+        $this->assertSame($this->hasher->hash($first), $this->hasher->hash($second));
+        $this->assertSame($this->hasher->hash($first), hash('sha256', (string) json_encode($this->hasher->hardwareCanonical($first))));
+        $this->assertNotSame($this->hasher->hash($first), hash('sha256', (string) json_encode($this->hasher->serviceCanonical($first))));
+        $this->assertSame('hardware_direct_buy', $this->hasher->hardwareCanonical($first)['metadata']['source_order_type'] ?? null);
+        $this->assertArrayHasKey('model_id', $this->hasher->hardwareCanonical($first)['lines'][0]);
+    }
+
+    public function test_rnp_hardware_hash_changes_when_catalog_sku_changes(): void
+    {
+        $base = $this->rnpHardwarePayloadForHasher();
+        $left = $this->validator->validate($base, StatutoryInvoiceChannel::RdServiceNet);
+        $base['lines'][0]['catalog_sku'] = 'morpho-fingerprint';
+        $right = $this->validator->validate($base, StatutoryInvoiceChannel::RdServiceNet);
+
+        $this->assertNotSame($this->hasher->hash($left), $this->hasher->hash($right));
+    }
+
+    public function test_rnp_hardware_hash_changes_when_shipping_line_kind_changes(): void
+    {
+        $base = [
+            'channel' => StatutoryInvoiceChannel::RdServiceNet->value,
+            'source_type' => StatutoryInvoiceSourceType::CommerceOrder->value,
+            'source_id' => 'RNP50',
+            'source_order_id' => 'RNP50',
+            'payment_status' => 'paid',
+            'payment_provider' => 'cashfree',
+            'payment_reference' => 'pay-rnp50',
+            'currency' => 'INR',
+            'customer' => ['name' => 'Buyer', 'phone' => '9000000050'],
+            'shipping_address' => [
+                'line1' => '1 Street',
+                'city' => 'Delhi',
+                'state' => 'Delhi',
+                'pincode' => '110001',
+            ],
+            'metadata' => [
+                'source' => 'rdservice.net',
+                'source_order_type' => 'hardware_direct_buy',
+            ],
+            'lines' => [[
+                'description' => 'Device',
+                'sku' => 'RBMFS110L1',
+                'catalog_sku' => 'mantra-fingerprint',
+                'qty' => 1,
+                'unit_price' => 2735,
+                'hsn_sac' => '84716050',
+                'gst_percentage' => 18,
+                'taxable_value' => 2317.8,
+                'tax_total' => 417.2,
+                'line_total' => 2735,
+                'shipping_line_kind' => 'physical_merchandise',
+                'requires_shipping' => true,
+                'model_id' => 91001,
+            ]],
+        ];
+        $physical = $this->validator->validate($base, StatutoryInvoiceChannel::RdServiceNet);
+        $base['lines'][0]['shipping_line_kind'] = 'service';
+        $service = $this->validator->validate($base, StatutoryInvoiceChannel::RdServiceNet);
+
+        $this->assertNotSame($this->hasher->hash($physical), $this->hasher->hash($service));
+    }
+
     public function test_rin_hardware_uses_the_hardware_hash_not_the_service_hash(): void
     {
         $payload = [
@@ -390,6 +507,49 @@ class ChannelIngestPayloadHasherTest extends TestCase
                 'taxable_value' => 3090.68,
                 'tax_total' => 556.32,
                 'line_total' => 3647,
+                'shipping_line_kind' => 'physical_merchandise',
+                'requires_shipping' => true,
+                'model_id' => 91001,
+            ]],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function rnpHardwarePayloadForHasher(string $sourceId = 'RNP55'): array
+    {
+        return [
+            'channel' => StatutoryInvoiceChannel::RdServiceNet->value,
+            'source_type' => StatutoryInvoiceSourceType::CommerceOrder->value,
+            'source_id' => $sourceId,
+            'source_order_id' => $sourceId,
+            'payment_status' => 'paid',
+            'payment_provider' => 'cashfree',
+            'payment_reference' => 'pay-'.$sourceId,
+            'currency' => 'INR',
+            'customer' => ['name' => 'Buyer', 'phone' => '9000000055'],
+            'shipping_address' => [
+                'line1' => '1 Street',
+                'city' => 'Delhi',
+                'state' => 'Delhi',
+                'pincode' => '110001',
+            ],
+            'metadata' => [
+                'source' => 'rdservice.net',
+                'source_order_type' => 'hardware_direct_buy',
+            ],
+            'lines' => [[
+                'description' => 'Mantra MFS110 L1 RD Service',
+                'sku' => 'RBMFS110L1',
+                'catalog_sku' => 'mantra-fingerprint',
+                'qty' => 1,
+                'unit_price' => 2735,
+                'hsn_sac' => '84716050',
+                'gst_percentage' => 18,
+                'taxable_value' => 2317.8,
+                'tax_total' => 417.2,
+                'line_total' => 2735,
                 'shipping_line_kind' => 'physical_merchandise',
                 'requires_shipping' => true,
                 'model_id' => 91001,
